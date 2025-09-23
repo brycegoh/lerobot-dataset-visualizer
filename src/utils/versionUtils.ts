@@ -3,6 +3,7 @@
  */
 
 const DATASET_URL = process.env.DATASET_URL || "https://huggingface.co/datasets";
+import { getHfAuthHeaders } from "./hfAuth";
 
 /**
  * Dataset information structure from info.json
@@ -36,7 +37,8 @@ export async function getDatasetInfo(repoId: string): Promise<DatasetInfo> {
     const response = await fetch(testUrl, { 
       method: "GET",
       cache: "no-store",
-      signal: controller.signal
+      signal: controller.signal,
+      headers: getHfAuthHeaders(testUrl)
     });
     
     clearTimeout(timeoutId);

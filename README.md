@@ -47,6 +47,15 @@ You can start editing the page by modifying `src/app/page.tsx` or other files in
 ### Environment Variables
 
 - `DATASET_URL`: (optional) Base URL for dataset hosting (defaults to HuggingFace Datasets).
+- `HF_TOKEN` (or `HUGGINGFACE_TOKEN`, `HF_ACCESS_TOKEN`, `HUGGINGFACEHUB_API_TOKEN`):
+  Set this in a `.env.local` file at the project root to enable access to private Hugging Face datasets/repos. Example:
+
+  ```bash
+  # .env.local
+  HF_TOKEN=hf_xxx_your_personal_access_token
+  ```
+
+  After adding, restart `npm run dev`. The app automatically attaches the Authorization header for requests to `huggingface.co`.
 
 ## Contributing
 

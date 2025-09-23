@@ -6,6 +6,7 @@ import {
   formatStringWithVars,
 } from "@/utils/parquetUtils";
 import { getDatasetVersion, buildVersionedUrl } from "@/utils/versionUtils";
+import { getHfAuthHeaders } from "@/utils/hfAuth";
 
 export default async function ExplorePage({
   searchParams,
@@ -20,6 +21,7 @@ export default async function ExplorePage({
       "https://huggingface.co/api/datasets?sort=lastModified&filter=LeRobot",
       {
         cache: "no-store",
+        headers: getHfAuthHeaders("https://huggingface.co"),
       },
     );
     if (!res.ok) throw new Error("Failed to fetch datasets");
@@ -73,7 +75,7 @@ export default async function ExplorePage({
             const url = buildVersionedUrl(repoId, version, videoPath);
             // Check if videoUrl exists (status 200)
             try {
-              const headRes = await fetch(url, { method: "HEAD" });
+              const headRes = await fetch(url, { method: "HEAD", headers: getHfAuthHeaders(url) });
               if (headRes.ok) {
                 videoUrl = url;
               }
