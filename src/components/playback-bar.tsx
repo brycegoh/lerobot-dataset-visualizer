@@ -11,8 +11,13 @@ import {
 } from "react-icons/fa";
 
 import { debounce } from "@/utils/debounce";
+import { FrameLabelPanel, FrameLabel } from "@/components/frame-label-panel";
 
-const PlaybackBar: React.FC = () => {
+type PlaybackBarProps = {
+  onFrameLabelSave?: (label: FrameLabel) => void;
+};
+
+const PlaybackBar: React.FC<PlaybackBarProps> = ({ onFrameLabelSave }) => {
   const { duration, isPlaying, setIsPlaying, currentTime, setCurrentTime } =
     useTime();
 
@@ -52,78 +57,83 @@ const PlaybackBar: React.FC = () => {
     // If it was paused before, keep it paused
   };
 
-  return (
-    <div className="flex items-center gap-4 w-full max-w-4xl mx-auto sticky bottom-0 bg-slate-900/95 px-4 py-3 rounded-3xl mt-auto">
-      <button
-        title="Jump backward 5 seconds"
-        onClick={() => setCurrentTime(Math.max(0, currentTime - 5))}
-        className="text-2xl hidden md:block"
-      >
-        <FaBackward size={24} />
-      </button>
-      <button
-        className={`text-3xl transition-transform ${isPlaying ? "scale-90 opacity-60" : "scale-110"}`}
-        title="Play. Toggle with Space"
-        onClick={() => setIsPlaying(true)}
-        style={{ display: isPlaying ? "none" : "inline-block" }}
-      >
-        <FaPlay size={24} />
-      </button>
-      <button
-        className={`text-3xl transition-transform ${!isPlaying ? "scale-90 opacity-60" : "scale-110"}`}
-        title="Pause. Toggle with Space"
-        onClick={() => setIsPlaying(false)}
-        style={{ display: !isPlaying ? "none" : "inline-block" }}
-      >
-        <FaPause size={24} />
-      </button>
-      <button
-        title="Jump forward 5 seconds"
-        onClick={() => setCurrentTime(Math.min(duration, currentTime + 5))}
-        className="text-2xl hidden md:block"
-      >
-        <FaForward size={24} />
-      </button>
-      <button
-        title="Rewind from start"
-        onClick={() => setCurrentTime(0)}
-        className="text-2xl hidden md:block"
-      >
-        <FaUndoAlt size={24} />
-      </button>
-      <input
-        type="range"
-        min={0}
-        max={duration}
-        step={0.01}
-        value={sliderValue}
-        onChange={handleSliderChange}
-        onMouseDown={handleSliderMouseDown}
-        onMouseUp={handleSliderMouseUp}
-        onTouchStart={handleSliderMouseDown}
-        onTouchEnd={handleSliderMouseUp}
-        className="flex-1 mx-2 accent-orange-500 focus:outline-none focus:ring-0"
-        aria-label="Seek video"
-      />
-      <span className="w-16 text-right tabular-nums text-xs text-slate-200 shrink-0">
-        {Math.floor(sliderValue)} / {Math.floor(duration)}
-      </span>
+    return (
+    <div className="w-full max-w-4xl mx-auto sticky bottom-0 mt-auto space-y-2">
+      {/* Frame labels, visually attached to the bar */}
+      <FrameLabelPanel onSave={onFrameLabelSave} />
+      {/* Playback controls */}
+      <div className="flex items-center gap-4 w-full bg-slate-900/95 px-4 py-3 rounded-3xl">
+        <button
+          title="Jump backward 5 seconds"
+          onClick={() => setCurrentTime(Math.max(0, currentTime - 5))}
+          className="text-2xl hidden md:block"
+        >
+          <FaBackward size={24} />
+        </button>
+        <button
+          className={`text-3xl transition-transform ${isPlaying ? "scale-90 opacity-60" : "scale-110"}`}
+          title="Play. Toggle with Space"
+          onClick={() => setIsPlaying(true)}
+          style={{ display: isPlaying ? "none" : "inline-block" }}
+        >
+          <FaPlay size={24} />
+        </button>
+        <button
+          className={`text-3xl transition-transform ${!isPlaying ? "scale-90 opacity-60" : "scale-110"}`}
+          title="Pause. Toggle with Space"
+          onClick={() => setIsPlaying(false)}
+          style={{ display: !isPlaying ? "none" : "inline-block" }}
+        >
+          <FaPause size={24} />
+        </button>
+        <button
+          title="Jump forward 5 seconds"
+          onClick={() => setCurrentTime(Math.min(duration, currentTime + 5))}
+          className="text-2xl hidden md:block"
+        >
+          <FaForward size={24} />
+        </button>
+        <button
+          title="Rewind from start"
+          onClick={() => setCurrentTime(0)}
+          className="text-2xl hidden md:block"
+        >
+          <FaUndoAlt size={24} />
+        </button>
+        <input
+          type="range"
+          min={0}
+          max={duration}
+          step={0.01}
+          value={sliderValue}
+          onChange={handleSliderChange}
+          onMouseDown={handleSliderMouseDown}
+          onMouseUp={handleSliderMouseUp}
+          onTouchStart={handleSliderMouseDown}
+          onTouchEnd={handleSliderMouseUp}
+          className="flex-1 mx-2 accent-orange-500 focus:outline-none focus:ring-0"
+          aria-label="Seek video"
+        />
+        <span className="w-16 text-right tabular-nums text-xs text-slate-200 shrink-0">
+          {Math.floor(sliderValue)} / {Math.floor(duration)}
+        </span>
 
-      <div className="text-xs text-slate-300 select-none ml-8 flex-col gap-y-0.5 hidden md:flex">
-        <p>
-          <span className="inline-flex items-center gap-1 font-mono align-middle">
-            <span className="px-2 py-0.5 rounded border border-slate-400 bg-slate-800 text-slate-200 text-xs shadow-inner">
-              Space
-            </span>
-          </span>{" "}
-          to pause/unpause
-        </p>
-        <p>
-          <span className="inline-flex items-center gap-1 font-mono align-middle">
-            <FaArrowUp size={14} />/<FaArrowDown size={14} />
-          </span>{" "}
-          to previous/next episode
-        </p>
+        <div className="text-xs text-slate-300 select-none ml-8 flex-col gap-y-0.5 hidden md:flex">
+          <p>
+            <span className="inline-flex items-center gap-1 font-mono align-middle">
+              <span className="px-2 py-0.5 rounded border border-slate-400 bg-slate-800 text-slate-200 text-xs shadow-inner">
+                Space
+              </span>
+            </span>{" "}
+            to pause/unpause
+          </p>
+          <p>
+            <span className="inline-flex items-center gap-1 font-mono align-middle">
+              <FaArrowUp size={14} />/<FaArrowDown size={14} />
+            </span>{" "}
+            to previous/next episode
+          </p>
+        </div>
       </div>
     </div>
   );

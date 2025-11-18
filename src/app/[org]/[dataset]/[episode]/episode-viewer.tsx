@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { postParentMessageWithParams } from "@/utils/postParentMessage";
 import { SimpleVideosPlayer } from "@/components/simple-videos-player";
@@ -10,6 +10,8 @@ import { TimeProvider, useTime } from "@/context/time-context";
 import Sidebar from "@/components/side-nav";
 import Loading from "@/components/loading-component";
 import { getAdjacentEpisodesVideoInfo } from "./fetch-data";
+import { EpisodeLabelPanel } from "@/components/episode-label-panel";
+import { supabase } from "@/utils/supabaseClient";
 
 export default function EpisodeViewer({
   data,
@@ -49,8 +51,10 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
     task,
   } = data;
 
-  const [videosReady, setVideosReady] = useState(!videosInfo.length);
-  const [chartsReady, setChartsReady] = useState(false);
+  // const [videosReady, setVideosReady] = useState(!videosInfo.length);
+  // const [chartsReady, setChartsReady] = useState(false);
+  const [videosReady, setVideosReady] = useState(true);
+  const [chartsReady, setChartsReady] = useState(true);
   const isLoading = !videosReady || !chartsReady;
 
   const router = useRouter();
@@ -230,12 +234,12 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
 
         {/* Language Instruction */}
         {task && (
-          <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-600">
+          <div className="mb-3 p-3 bg-slate-800 rounded-lg border border-slate-600">
             <p className="text-slate-300">
               <span className="font-semibold text-slate-100">Language Instruction:</span>
             </p>
             <div className="mt-2 text-slate-300">
-              {task.split('\n').map((instruction, index) => (
+              {task.split('\n').map((instruction: string, index: number) => (
                 <p key={index} className="mb-1">
                   {instruction}
                 </p>
@@ -243,6 +247,44 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
             </div>
           </div>
         )}
+        {/* Episode-level labels */}
+        <EpisodeLabelPanel
+          orgId={org ?? "unknown-org"}
+          datasetId={dataset ?? datasetInfo.repoId}
+          episodeId={String(episodeId)}
+          onSave={async (label) => {
+            const {
+              orgId,
+              datasetId,
+              episodeId,
+              qualityTag,
+              keyNotes,
+              remarks,
+              updatedAt,
+            } = label;
+
+            const { error } = await supabase
+              .from("episode_labels")
+              .upsert(
+                {
+                  org_id: orgId,
+                  dataset_id: datasetId,
+                  episode_id: episodeId,
+                  quality_tag: qualityTag,
+                  key_notes: keyNotes,
+                  remarks,
+                  updated_at: updatedAt,
+                },
+                { onConflict: "org_id,dataset_id,episode_id" },
+              );
+
+            if (error) {
+              console.error("Error saving episode label", error);
+            } else {
+              console.log("Episode label saved to DB");
+            }
+          }}
+        />
 
         {/* Graph */}
         <div className="mb-4">
@@ -250,10 +292,34 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
             data={chartDataGroups}
             onChartsReady={() => setChartsReady(true)}
           />
-
         </div>
+        <PlaybackBar
+          onFrameLabelSave={async (label) => {
+            const { frameIdx, phaseTag, issueTags, notes, updatedAt } = label;
 
-        <PlaybackBar />
+            const { error } = await supabase
+              .from("frame_labels")
+              .upsert(
+                {
+                  org_id: org ?? "unknown-org",
+                  dataset_id: dataset ?? datasetInfo.repoId,
+                  episode_id: String(episodeId),
+                  frame_idx: frameIdx,
+                  phase_tag: phaseTag,
+                  issue_tags: issueTags,
+                  notes,
+                  updated_at: updatedAt,
+                },
+                { onConflict: "org_id,dataset_id,episode_id,frame_idx" },
+              );
+
+            if (error) {
+              console.error("Error saving frame label", error);
+            } else {
+              console.log("Frame label saved to DB");
+            }
+          }}
+        />
       </div>
     </div>
   );
