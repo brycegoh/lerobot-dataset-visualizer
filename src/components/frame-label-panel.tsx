@@ -60,6 +60,7 @@ export function FrameLabelPanel({
   const [issueTags, setIssueTags] = useState<IssueTag[]>([]);
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const hasAnyTagSelection = !!phaseTag || issueTags.length > 0;
 
   const startEditing = () => {
     setIsPlaying(false);
@@ -88,6 +89,12 @@ export function FrameLabelPanel({
   };
 
   const handleSave = async () => {
+
+    if (!hasAnyTagSelection) {
+      setIsEditing(false);
+      return;
+    }
+    
     const label: FrameLabel = {
       frameIdx,
       phaseTag: phaseTag || null,
@@ -227,7 +234,7 @@ export function FrameLabelPanel({
             <button
               type="button"
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || !hasAnyTagSelection}
               className="rounded-md bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
             >
               {isSaving ? "Saving…" : "Save frame label"}

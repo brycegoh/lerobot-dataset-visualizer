@@ -50,6 +50,11 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
     episodes,
     task,
   } = data;
+  const [orgFromRepo, datasetFromRepo] = (datasetInfo.repoId ?? "").split("/");
+
+  const effectiveOrg = org ?? orgFromRepo ?? "unknown-org";
+  const effectiveDataset =
+    dataset ?? datasetFromRepo ?? datasetInfo.repoId;
 
   // const [videosReady, setVideosReady] = useState(!videosInfo.length);
   // const [chartsReady, setChartsReady] = useState(false);
@@ -249,27 +254,30 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
         )}
         {/* Episode-level labels */}
         <EpisodeLabelPanel
-          orgId={org ?? "unknown-org"}
-          datasetId={dataset ?? datasetInfo.repoId}
+          orgId={effectiveOrg}
+          datasetId={effectiveDataset}
           episodeId={String(episodeId)}
           onSave={async (label) => {
             const {
-              orgId,
-              datasetId,
-              episodeId,
               qualityTag,
               keyNotes,
               remarks,
               updatedAt,
             } = label;
 
+            console.log("Saving episode label", {
+              org: effectiveOrg,
+              dataset: effectiveDataset,
+              episodeId,
+            });
+
             const { error } = await supabase
               .from("episode_labels")
               .upsert(
                 {
-                  org_id: orgId,
-                  dataset_id: datasetId,
-                  episode_id: episodeId,
+                  org_id: effectiveOrg,
+                  dataset_id: effectiveDataset,
+                  episode_id: String(episodeId),
                   quality_tag: qualityTag,
                   key_notes: keyNotes,
                   remarks,
@@ -297,12 +305,19 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
           onFrameLabelSave={async (label) => {
             const { frameIdx, phaseTag, issueTags, notes, updatedAt } = label;
 
+            console.log("Saving frame label", {
+              org: effectiveOrg,
+              dataset: effectiveDataset,
+              episodeId,
+              frameIdx,
+            });
+
             const { error } = await supabase
               .from("frame_labels")
               .upsert(
                 {
-                  org_id: org ?? "unknown-org",
-                  dataset_id: dataset ?? datasetInfo.repoId,
+                  org_id: effectiveOrg,
+                  dataset_id: effectiveDataset,
                   episode_id: String(episodeId),
                   frame_idx: frameIdx,
                   phase_tag: phaseTag,
