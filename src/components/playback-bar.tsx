@@ -17,6 +17,7 @@ import { FrameLabelPanel, FrameLabel } from "@/components/frame-label-panel";
 
 type PlaybackBarProps = {
   onFrameLabelSave?: (label: FrameLabel) => void | Promise<void>;
+  onFrameLabelDelete?: (frameIdx: number) => void | Promise<void>; // NEW
   frameLabels?: FrameLabel[];
 };
 
@@ -24,6 +25,7 @@ const FPS = 30;
 
 const PlaybackBar: React.FC<PlaybackBarProps> = ({
   onFrameLabelSave,
+  onFrameLabelDelete,
   frameLabels = [],
 }) => {
   const { duration, isPlaying, setIsPlaying, currentTime, setCurrentTime } =
@@ -72,6 +74,7 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
       {/* Frame labels panel, visually attached above the bar */}
       <FrameLabelPanel
         onSave={onFrameLabelSave}
+        onDelete={onFrameLabelDelete}
         initialLabels={frameLabels}
         editFrameIdx={editFrameIdx}
         onEditFrameConsumed={() => setEditFrameIdx(null)}

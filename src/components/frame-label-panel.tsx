@@ -14,7 +14,7 @@ const PHASE_TAG_OPTIONS = [
 type PhaseTag = (typeof PHASE_TAG_OPTIONS)[number];
 
 const ISSUE_TAG_OPTIONS = [
-  "blur",
+  "frozen_cam",
   "failed_pick",
   "collision_between_arms",
   "collision_with_sink",
@@ -36,15 +36,15 @@ export type FrameLabel = {
 type FrameLabelPanelProps = {
   initialLabels?: FrameLabel[];
   onSave?: (label: FrameLabel) => void | Promise<void>;
-  /** Frame index that should be opened for editing (from playback bar) */
+  onDelete?: (frameIdx: number) => void | Promise<void>;
   editFrameIdx?: number | null;
-  /** Called once we've responded to editFrameIdx so parent can clear it */
   onEditFrameConsumed?: () => void;
 };
 
 export function FrameLabelPanel({
   initialLabels = [],
   onSave,
+  onDelete,
   editFrameIdx,
   onEditFrameConsumed,
 }: FrameLabelPanelProps) {
@@ -76,11 +76,11 @@ export function FrameLabelPanel({
   const existing = labelsByFrame[frameIdx];
 
   const [isEditing, setIsEditing] = useState(false);
-  const [phaseTag, setPhaseTag] = useState<PhaseTag | "">("");
+  const [phaseTag, setPhaseTag] = useState<PhaseTag | null>(null);
   const [issueTags, setIssueTags] = useState<IssueTag[]>([]);
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const hasAnyTagSelection = !!phaseTag || issueTags.length > 0;
+  const hasPhaseSelection = phaseTag !== null;
 
   const startEditing = (targetIdx?: number) => {
     setIsPlaying(false);
@@ -89,11 +89,11 @@ export function FrameLabelPanel({
     const label = labelsByFrame[idx];
 
     if (label) {
-      setPhaseTag(label.phaseTag ?? "");
+      setPhaseTag(label.phaseTag ?? null);
       setIssueTags(label.issueTags);
       setNotes(label.notes);
     } else {
-      setPhaseTag("");
+      setPhaseTag(null);
       setIssueTags([]);
       setNotes("");
     }
@@ -122,7 +122,7 @@ export function FrameLabelPanel({
   };
 
   const handleSave = async () => {
-    if (!hasAnyTagSelection) {
+    if (!hasPhaseSelection) {
       // nothing selected -> don't save a label
       setIsEditing(false);
       setEditingFrameIdx(null);
@@ -133,7 +133,7 @@ export function FrameLabelPanel({
 
     const label: FrameLabel = {
       frameIdx: idx,
-      phaseTag: phaseTag || null,
+      phaseTag,
       issueTags,
       notes,
       updatedAt: new Date().toISOString(),
@@ -157,6 +157,27 @@ export function FrameLabelPanel({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleDelete = async () => {
+    if (!editingFrameIdx && editingFrameIdx !== 0) return;
+    const idx = editingFrameIdx;
+
+    // remove locally
+    setLabelsByFrame((prev) => {
+      const copy = { ...prev };
+      delete copy[idx];
+      return copy;
+    });
+
+    if (onDelete) {
+      await onDelete(idx);
+    } else {
+      console.log("Frame label deleted:", idx);
+    }
+
+    setIsEditing(false);
+    setEditingFrameIdx(null);
   };
 
   const summaryParts: string[] = [];
@@ -194,24 +215,36 @@ export function FrameLabelPanel({
       {isEditing && (
         <div className="space-y-3 border-t border-slate-700 pt-3">
           {/* Phase */}
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[11px] font-medium text-slate-300">
-              Phase:
-            </label>
-            <select
-              className="rounded-md border border-slate-600 bg-slate-950 px-2 py-1 text-[11px]"
-              value={phaseTag}
-              onChange={(e) =>
-                setPhaseTag(e.target.value ? (e.target.value as PhaseTag) : "")
-              }
-            >
-              <option value="">(none)</option>
-              {PHASE_TAG_OPTIONS.map((tag) => (
-                <option key={tag} value={tag}>
-                  {tag}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-slate-300">
+                Phase:
+              </label>
+              <span className="text-[10px] text-slate-500">
+                Tap to select (required)
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {PHASE_TAG_OPTIONS.map((tag) => {
+                const active = phaseTag === tag;
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() =>
+                      setPhaseTag((prev) => (prev === tag ? null : tag))
+                    }
+                    className={`rounded-full border px-2 py-1 text-[11px] ${
+                      active
+                        ? "bg-emerald-400 text-slate-900 border-emerald-300"
+                        : "bg-slate-900 text-slate-100 border-slate-600"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Issues */}
@@ -261,6 +294,15 @@ export function FrameLabelPanel({
 
           {/* Actions */}
           <div className="flex justify-end gap-2">
+            {editingFrameIdx != null && labelsByFrame[editingFrameIdx] && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-md border border-red-500 px-2 py-1 text-[11px] text-red-300 hover:bg-red-950"
+              >
+                Delete
+              </button>
+            )}
             <button
               type="button"
               onClick={cancelEditing}
@@ -271,7 +313,7 @@ export function FrameLabelPanel({
             <button
               type="button"
               onClick={handleSave}
-              disabled={isSaving || !hasAnyTagSelection}
+              disabled={isSaving || !hasPhaseSelection}
               className="rounded-md bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
             >
               {isSaving ? "Saving…" : "Save frame label"}

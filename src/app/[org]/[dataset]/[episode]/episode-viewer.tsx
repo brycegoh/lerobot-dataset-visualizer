@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef} from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { postParentMessageWithParams } from "@/utils/postParentMessage";
 import { SimpleVideosPlayer } from "@/components/simple-videos-player";
@@ -10,7 +10,10 @@ import { TimeProvider, useTime } from "@/context/time-context";
 import Sidebar from "@/components/side-nav";
 import Loading from "@/components/loading-component";
 import { getAdjacentEpisodesVideoInfo } from "./fetch-data";
-import { EpisodeLabelPanel, EpisodeLabel } from "@/components/episode-label-panel";
+import {
+  EpisodeLabelPanel,
+  type EpisodeLabel,
+} from "@/components/episode-label-panel";
 import type { FrameLabel } from "@/components/frame-label-panel";
 import { supabase } from "@/utils/supabaseClient";
 
@@ -28,13 +31,24 @@ export default function EpisodeViewer({
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950 text-red-400">
-        <div className="max-w-xl p-8 rounded bg-slate-900 border border-red-500 shadow-lg">
-          <h2 className="text-2xl font-bold mb-4">Something went wrong</h2>
-          <p className="text-lg font-mono whitespace-pre-wrap mb-4">{error}</p>
+        <div className="max-w-xl rounded border border-red-500 bg-slate-900 p-8 shadow-lg">
+          <h2 className="mb-4 text-2xl font-bold">Something went wrong</h2>
+          <p className="mb-4 whitespace-pre-wrap font-mono text-lg">
+            {error}
+          </p>
         </div>
       </div>
     );
   }
+
+  if (!data) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-200">
+        <Loading />
+      </div>
+    );
+  }
+
   return (
     <TimeProvider duration={data.duration}>
       <EpisodeViewerInner data={data} org={org} dataset={dataset} />
@@ -42,7 +56,15 @@ export default function EpisodeViewer({
   );
 }
 
-function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; dataset?: string; }) {
+function EpisodeViewerInner({
+  data,
+  org,
+  dataset,
+}: {
+  data: any;
+  org?: string;
+  dataset?: string;
+}) {
   const {
     datasetInfo,
     episodeId,
@@ -51,17 +73,18 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
     episodes,
     task,
   } = data;
-  const [orgFromRepo, datasetFromRepo] = (datasetInfo.repoId ?? "").split("/");
 
+  // Derive org/dataset from repoId if not provided by route
+  const [orgFromRepo, datasetFromRepo] = (datasetInfo?.repoId ?? "").split("/");
   const effectiveOrg = org ?? orgFromRepo ?? "unknown-org";
   const effectiveDataset =
-    dataset ?? datasetFromRepo ?? datasetInfo.repoId;
-  
+    dataset ?? datasetFromRepo ?? datasetInfo.repoId ?? "unknown-dataset";
+
+  // Episode + frame labels state
   const [episodeLabel, setEpisodeLabel] = useState<EpisodeLabel | null>(null);
   const [frameLabels, setFrameLabels] = useState<FrameLabel[]>([]);
 
-  // const [videosReady, setVideosReady] = useState(!videosInfo.length);
-  // const [chartsReady, setChartsReady] = useState(false);
+  // For now, mark videos/charts as ready so you can work on UI
   const [videosReady, setVideosReady] = useState(true);
   const [chartsReady, setChartsReady] = useState(true);
   const isLoading = !videosReady || !chartsReady;
@@ -69,7 +92,6 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // State
   // Use context for time sync
   const { currentTime, setCurrentTime, setIsPlaying, isPlaying } = useTime();
 
@@ -81,16 +103,116 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
     (currentPage - 1) * pageSize,
     currentPage * pageSize,
   );
-  
+
+  // Preload adjacent episodes' videos (for smoother navigation)
+  useEffect(() => {
+    if (!effectiveOrg || !effectiveDataset) return;
+
+    const preloadAdjacent = async () => {
+      try {
+        await getAdjacentEpisodesVideoInfo(
+          effectiveOrg,
+          effectiveDataset,
+          episodeId,
+          2,
+        );
+      } catch {
+        // ignore preload errors
+      }
+    };
+
+    preloadAdjacent();
+  }, [effectiveOrg, effectiveDataset, episodeId]);
+
+  // Initialize based on URL time parameter
+  useEffect(() => {
+    const timeParam = searchParams.get("t");
+    if (timeParam) {
+      const timeValue = parseFloat(timeParam);
+      if (!isNaN(timeValue)) {
+        setCurrentTime(timeValue);
+      }
+    }
+  }, [searchParams, setCurrentTime]);
+
+  // sync with parent window hf.co/spaces
+  useEffect(() => {
+    postParentMessageWithParams((params: URLSearchParams) => {
+      params.set("path", window.location.pathname + window.location.search);
+    });
+  }, []);
+
+  // Initialize page & keyboard listener
+  useEffect(() => {
+    // Initialize page based on current episode
+    const episodeIndex = episodes.indexOf(episodeId);
+    if (episodeIndex !== -1) {
+      setCurrentPage(Math.floor(episodeIndex / pageSize) + 1);
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const { key } = e;
+
+      if (key === " ") {
+        e.preventDefault();
+        setIsPlaying((prev: boolean) => !prev);
+      } else if (key === "ArrowDown" || key === "ArrowUp") {
+        e.preventDefault();
+        const nextEpisodeId =
+          key === "ArrowDown" ? episodeId + 1 : episodeId - 1;
+        const lowestEpisodeId = episodes[0];
+        const highestEpisodeId = episodes[episodes.length - 1];
+
+        if (
+          nextEpisodeId >= lowestEpisodeId &&
+          nextEpisodeId <= highestEpisodeId
+        ) {
+          router.push(`./episode_${nextEpisodeId}`);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [episodes, episodeId, pageSize, router, setIsPlaying]);
+
+  // Only update URL ?t= param when the integer second changes
+  const lastUrlSecondRef = useRef<number>(-1);
+  useEffect(() => {
+    if (isPlaying) return;
+
+    const currentSec = Math.floor(currentTime);
+    if (currentTime > 0 && lastUrlSecondRef.current !== currentSec) {
+      lastUrlSecondRef.current = currentSec;
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.set("t", currentSec.toString());
+
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}?${newParams.toString()}`,
+      );
+
+      postParentMessageWithParams((params: URLSearchParams) => {
+        params.set("path", window.location.pathname + window.location.search);
+      });
+    }
+  }, [isPlaying, currentTime, searchParams]);
+
+  // Load episode + frame labels from Supabase whenever org/dataset/episode changes
   useEffect(() => {
     const loadLabels = async () => {
+      const episodeIdStr = String(episodeId);
+
       // Episode-level label
       const { data: epData, error: epError } = await supabase
         .from("episode_labels")
-        .select("*")
+        .select("quality_tag,key_notes,remarks,updated_at")
         .eq("org_id", effectiveOrg)
         .eq("dataset_id", effectiveDataset)
-        .eq("episode_id", String(episodeId))
+        .eq("episode_id", episodeIdStr)
         .maybeSingle();
 
       if (epError && epError.code !== "PGRST116") {
@@ -99,9 +221,9 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
 
       if (epData) {
         setEpisodeLabel({
-          orgId: epData.org_id,
-          datasetId: epData.dataset_id,
-          episodeId: epData.episode_id,
+          orgId: effectiveOrg,
+          datasetId: effectiveDataset,
+          episodeId: episodeIdStr,
           qualityTag: epData.quality_tag,
           keyNotes: epData.key_notes ?? [],
           remarks: epData.remarks ?? "",
@@ -114,10 +236,10 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
       // Frame-level labels
       const { data: frData, error: frError } = await supabase
         .from("frame_labels")
-        .select("*")
+        .select("frame_idx,phase_tag,issue_tags,notes,updated_at")
         .eq("org_id", effectiveOrg)
         .eq("dataset_id", effectiveDataset)
-        .eq("episode_id", String(episodeId))
+        .eq("episode_id", episodeIdStr)
         .order("frame_idx", { ascending: true });
 
       if (frError) {
@@ -138,100 +260,10 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
       }
     };
 
-    loadLabels();
+    if (effectiveOrg && effectiveDataset && episodeId !== undefined) {
+      loadLabels();
+    }
   }, [effectiveOrg, effectiveDataset, episodeId]);
-
-  // Preload adjacent episodes' videos
-  useEffect(() => {
-    if (!org || !dataset) return;
-    
-    const preloadAdjacent = async () => {
-      try {
-        await getAdjacentEpisodesVideoInfo(org, dataset, episodeId, 2);
-        // Preload adjacent episodes for smoother navigation
-      } catch {
-        // Skip preloading on error
-      }
-    };
-    
-    preloadAdjacent();
-  }, [org, dataset, episodeId]);
-
-  // Initialize based on URL time parameter
-  useEffect(() => {
-    const timeParam = searchParams.get("t");
-    if (timeParam) {
-      const timeValue = parseFloat(timeParam);
-      if (!isNaN(timeValue)) {
-        setCurrentTime(timeValue);
-      }
-    }
-  }, []);
-
-  // sync with parent window hf.co/spaces
-  useEffect(() => {
-    postParentMessageWithParams((params: URLSearchParams) => {
-      params.set("path", window.location.pathname + window.location.search);
-    });
-  }, []);
-
-  // Initialize based on URL time parameter
-  useEffect(() => {
-    // Initialize page based on current episode
-    const episodeIndex = episodes.indexOf(episodeId);
-    if (episodeIndex !== -1) {
-      setCurrentPage(Math.floor(episodeIndex / pageSize) + 1);
-    }
-
-    // Add keyboard event listener
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [episodes, episodeId, pageSize, searchParams]);
-
-  // Only update URL ?t= param when the integer second changes
-  const lastUrlSecondRef = useRef<number>(-1);
-  useEffect(() => {
-    if (isPlaying) return;
-    const currentSec = Math.floor(currentTime);
-    if (currentTime > 0 && lastUrlSecondRef.current !== currentSec) {
-      lastUrlSecondRef.current = currentSec;
-      const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("t", currentSec.toString());
-      // Replace state instead of pushing to avoid navigation stack bloat
-      window.history.replaceState(
-        {},
-        "",
-        `${window.location.pathname}?${newParams.toString()}`,
-      );
-      postParentMessageWithParams((params: URLSearchParams) => {
-        params.set("path", window.location.pathname + window.location.search);
-      });
-    }
-  }, [isPlaying, currentTime, searchParams]);
-
-  // Handle keyboard shortcuts
-  const handleKeyDown = (e: KeyboardEvent) => {
-    const { key } = e;
-
-    if (key === " ") {
-      e.preventDefault();
-      setIsPlaying((prev: boolean) => !prev);
-    } else if (key === "ArrowDown" || key === "ArrowUp") {
-      e.preventDefault();
-      const nextEpisodeId = key === "ArrowDown" ? episodeId + 1 : episodeId - 1;
-      const lowestEpisodeId = episodes[0];
-      const highestEpisodeId = episodes[episodes.length - 1];
-
-      if (
-        nextEpisodeId >= lowestEpisodeId &&
-        nextEpisodeId <= highestEpisodeId
-      ) {
-        router.push(`./episode_${nextEpisodeId}`);
-      }
-    }
-  };
 
   // Pagination functions
   const nextPage = () => {
@@ -244,6 +276,36 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
     if (currentPage > 1) {
       setCurrentPage((prev) => prev - 1);
     }
+  };
+
+  // Clear all labels for this episode (episode + frames)
+  const handleClearAllLabels = async () => {
+    const episodeIdStr = String(episodeId);
+
+    const { error: frameErr } = await supabase
+      .from("frame_labels")
+      .delete()
+      .eq("org_id", effectiveOrg)
+      .eq("dataset_id", effectiveDataset)
+      .eq("episode_id", episodeIdStr);
+
+    if (frameErr) {
+      console.error("Error clearing frame labels", frameErr);
+    }
+
+    const { error: epErr } = await supabase
+      .from("episode_labels")
+      .delete()
+      .eq("org_id", effectiveOrg)
+      .eq("dataset_id", effectiveDataset)
+      .eq("episode_id", episodeIdStr);
+
+    if (epErr) {
+      console.error("Error clearing episode label", epErr);
+    }
+
+    setFrameLabels([]);
+    setEpisodeLabel(null);
   };
 
   return (
@@ -261,11 +323,13 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
 
       {/* Content */}
       <div
-        className={`flex max-h-screen flex-col gap-4 p-4 md:flex-1 relative ${isLoading ? "overflow-hidden" : "overflow-y-auto"}`}
+        className={`relative flex max-h-screen flex-col gap-4 p-4 md:flex-1 ${
+          isLoading ? "overflow-hidden" : "overflow-y-auto"
+        }`}
       >
         {isLoading && <Loading />}
 
-        <div className="flex items-center justify-start my-4">
+        <div className="my-4 flex items-center justify-start">
           <a
             href="https://github.com/huggingface/lerobot"
             target="_blank"
@@ -293,7 +357,7 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
         </div>
 
         {/* Videos */}
-        {videosInfo.length && (
+        {videosInfo.length > 0 && (
           <SimpleVideosPlayer
             videosInfo={videosInfo}
             onVideosReady={() => setVideosReady(true)}
@@ -302,12 +366,14 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
 
         {/* Language Instruction */}
         {task && (
-          <div className="mb-3 p-3 bg-slate-800 rounded-lg border border-slate-600">
+          <div className="mb-3 rounded-lg border border-slate-600 bg-slate-800 p-3">
             <p className="text-slate-300">
-              <span className="font-semibold text-slate-100">Language Instruction:</span>
+              <span className="font-semibold text-slate-100">
+                Language Instruction:
+              </span>
             </p>
             <div className="mt-2 text-slate-300">
-              {task.split('\n').map((instruction: string, index: number) => (
+              {task.split("\n").map((instruction: string, index: number) => (
                 <p key={index} className="mb-1">
                   {instruction}
                 </p>
@@ -315,12 +381,13 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
             </div>
           </div>
         )}
+
         {/* Episode-level labels */}
         <EpisodeLabelPanel
           orgId={effectiveOrg}
           datasetId={effectiveDataset}
           episodeId={String(episodeId)}
-          initialLabel={episodeLabel || undefined}
+          initialLabel={episodeLabel ?? undefined}
           onSave={async (label) => {
             const { qualityTag, keyNotes, remarks, updatedAt } = label;
 
@@ -346,6 +413,7 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
               setEpisodeLabel(label);
             }
           }}
+          onClearAll={handleClearAllLabels}
         />
 
         {/* Graph */}
@@ -355,6 +423,8 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
             onChartsReady={() => setChartsReady(true)}
           />
         </div>
+
+        {/* Playback + frame-level labels */}
         <PlaybackBar
           frameLabels={frameLabels}
           onFrameLabelSave={async (label) => {
@@ -387,6 +457,24 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
                 copy[idx] = label;
                 return copy;
               });
+            }
+          }}
+          onFrameLabelDelete={async (frameIdx) => {
+            const { error } = await supabase
+              .from("frame_labels")
+              .delete()
+              .eq("org_id", effectiveOrg)
+              .eq("dataset_id", effectiveDataset)
+              .eq("episode_id", String(episodeId))
+              .eq("frame_idx", frameIdx);
+
+            if (error) {
+              console.error("Error deleting frame label", error);
+            } else {
+              console.log("Frame label deleted from DB", frameIdx);
+              setFrameLabels((prev) =>
+                prev.filter((l) => l.frameIdx !== frameIdx),
+              );
             }
           }}
         />
