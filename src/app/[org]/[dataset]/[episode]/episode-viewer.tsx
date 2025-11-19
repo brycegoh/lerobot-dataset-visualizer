@@ -10,7 +10,8 @@ import { TimeProvider, useTime } from "@/context/time-context";
 import Sidebar from "@/components/side-nav";
 import Loading from "@/components/loading-component";
 import { getAdjacentEpisodesVideoInfo } from "./fetch-data";
-import { EpisodeLabelPanel } from "@/components/episode-label-panel";
+import { EpisodeLabelPanel, EpisodeLabel } from "@/components/episode-label-panel";
+import type { FrameLabel } from "@/components/frame-label-panel";
 import { supabase } from "@/utils/supabaseClient";
 
 export default function EpisodeViewer({
@@ -55,6 +56,9 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
   const effectiveOrg = org ?? orgFromRepo ?? "unknown-org";
   const effectiveDataset =
     dataset ?? datasetFromRepo ?? datasetInfo.repoId;
+  
+  const [episodeLabel, setEpisodeLabel] = useState<EpisodeLabel | null>(null);
+  const [frameLabels, setFrameLabels] = useState<FrameLabel[]>([]);
 
   // const [videosReady, setVideosReady] = useState(!videosInfo.length);
   // const [chartsReady, setChartsReady] = useState(false);
@@ -78,6 +82,65 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
     currentPage * pageSize,
   );
   
+  useEffect(() => {
+    const loadLabels = async () => {
+      // Episode-level label
+      const { data: epData, error: epError } = await supabase
+        .from("episode_labels")
+        .select("*")
+        .eq("org_id", effectiveOrg)
+        .eq("dataset_id", effectiveDataset)
+        .eq("episode_id", String(episodeId))
+        .maybeSingle();
+
+      if (epError && epError.code !== "PGRST116") {
+        console.error("Error loading episode label", epError);
+      }
+
+      if (epData) {
+        setEpisodeLabel({
+          orgId: epData.org_id,
+          datasetId: epData.dataset_id,
+          episodeId: epData.episode_id,
+          qualityTag: epData.quality_tag,
+          keyNotes: epData.key_notes ?? [],
+          remarks: epData.remarks ?? "",
+          updatedAt: epData.updated_at ?? undefined,
+        });
+      } else {
+        setEpisodeLabel(null);
+      }
+
+      // Frame-level labels
+      const { data: frData, error: frError } = await supabase
+        .from("frame_labels")
+        .select("*")
+        .eq("org_id", effectiveOrg)
+        .eq("dataset_id", effectiveDataset)
+        .eq("episode_id", String(episodeId))
+        .order("frame_idx", { ascending: true });
+
+      if (frError) {
+        console.error("Error loading frame labels", frError);
+        setFrameLabels([]);
+      } else if (frData) {
+        setFrameLabels(
+          frData.map((row: any) => ({
+            frameIdx: row.frame_idx,
+            phaseTag: row.phase_tag,
+            issueTags: row.issue_tags ?? [],
+            notes: row.notes ?? "",
+            updatedAt: row.updated_at ?? undefined,
+          })),
+        );
+      } else {
+        setFrameLabels([]);
+      }
+    };
+
+    loadLabels();
+  }, [effectiveOrg, effectiveDataset, episodeId]);
+
   // Preload adjacent episodes' videos
   useEffect(() => {
     if (!org || !dataset) return;
@@ -257,19 +320,9 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
           orgId={effectiveOrg}
           datasetId={effectiveDataset}
           episodeId={String(episodeId)}
+          initialLabel={episodeLabel || undefined}
           onSave={async (label) => {
-            const {
-              qualityTag,
-              keyNotes,
-              remarks,
-              updatedAt,
-            } = label;
-
-            console.log("Saving episode label", {
-              org: effectiveOrg,
-              dataset: effectiveDataset,
-              episodeId,
-            });
+            const { qualityTag, keyNotes, remarks, updatedAt } = label;
 
             const { error } = await supabase
               .from("episode_labels")
@@ -290,6 +343,7 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
               console.error("Error saving episode label", error);
             } else {
               console.log("Episode label saved to DB");
+              setEpisodeLabel(label);
             }
           }}
         />
@@ -302,15 +356,9 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
           />
         </div>
         <PlaybackBar
+          frameLabels={frameLabels}
           onFrameLabelSave={async (label) => {
             const { frameIdx, phaseTag, issueTags, notes, updatedAt } = label;
-
-            console.log("Saving frame label", {
-              org: effectiveOrg,
-              dataset: effectiveDataset,
-              episodeId,
-              frameIdx,
-            });
 
             const { error } = await supabase
               .from("frame_labels")
@@ -332,6 +380,13 @@ function EpisodeViewerInner({ data, org, dataset }: { data: any; org?: string; d
               console.error("Error saving frame label", error);
             } else {
               console.log("Frame label saved to DB");
+              setFrameLabels((prev) => {
+                const idx = prev.findIndex((l) => l.frameIdx === frameIdx);
+                if (idx === -1) return [...prev, label];
+                const copy = [...prev];
+                copy[idx] = label;
+                return copy;
+              });
             }
           }}
         />

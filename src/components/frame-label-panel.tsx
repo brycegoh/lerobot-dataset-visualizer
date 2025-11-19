@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
@@ -35,23 +35,43 @@ export type FrameLabel = {
 
 type FrameLabelPanelProps = {
   initialLabels?: FrameLabel[];
-  onSave?: (label: FrameLabel) => void;
+  onSave?: (label: FrameLabel) => void | Promise<void>;
+  /** Frame index that should be opened for editing (from playback bar) */
+  editFrameIdx?: number | null;
+  /** Called once we've responded to editFrameIdx so parent can clear it */
+  onEditFrameConsumed?: () => void;
 };
 
 export function FrameLabelPanel({
   initialLabels = [],
   onSave,
+  editFrameIdx,
+  onEditFrameConsumed,
 }: FrameLabelPanelProps) {
   const { currentTime, setIsPlaying } = useTime();
-
   const fps = 30;
 
-  const frameIdx = Math.max(0, Math.round(currentTime * fps));
-  const timeLabel = currentTime.toFixed(2);
-
+  // Map frameIdx -> label, seeded from initialLabels
   const [labelsByFrame, setLabelsByFrame] = useState<Record<number, FrameLabel>>(
     () => Object.fromEntries(initialLabels.map((l) => [l.frameIdx, l])),
   );
+
+  // Re-sync when initialLabels from parent (Supabase) change
+  useEffect(() => {
+    setLabelsByFrame(
+      Object.fromEntries(initialLabels.map((l) => [l.frameIdx, l])),
+    );
+  }, [initialLabels]);
+
+  // When editing, we lock onto a specific frame index
+  const [editingFrameIdx, setEditingFrameIdx] = useState<number | null>(null);
+
+  const baseFrameIdx = Math.max(0, Math.round(currentTime * fps));
+  const frameIdx = editingFrameIdx ?? baseFrameIdx;
+  const timeLabel =
+    editingFrameIdx != null
+      ? (editingFrameIdx / fps).toFixed(2)
+      : currentTime.toFixed(2);
 
   const existing = labelsByFrame[frameIdx];
 
@@ -62,24 +82,37 @@ export function FrameLabelPanel({
   const [isSaving, setIsSaving] = useState(false);
   const hasAnyTagSelection = !!phaseTag || issueTags.length > 0;
 
-  const startEditing = () => {
+  const startEditing = (targetIdx?: number) => {
     setIsPlaying(false);
 
-    if (existing) {
-      setPhaseTag(existing.phaseTag ?? "");
-      setIssueTags(existing.issueTags);
-      setNotes(existing.notes);
+    const idx = targetIdx ?? frameIdx;
+    const label = labelsByFrame[idx];
+
+    if (label) {
+      setPhaseTag(label.phaseTag ?? "");
+      setIssueTags(label.issueTags);
+      setNotes(label.notes);
     } else {
       setPhaseTag("");
       setIssueTags([]);
       setNotes("");
     }
 
+    setEditingFrameIdx(idx);
     setIsEditing(true);
   };
 
+  // React when playback bar asks us to edit a specific frame (flag click)
+  useEffect(() => {
+    if (editFrameIdx == null) return;
+    startEditing(editFrameIdx);
+    if (onEditFrameConsumed) onEditFrameConsumed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editFrameIdx]);
+
   const cancelEditing = () => {
     setIsEditing(false);
+    setEditingFrameIdx(null);
   };
 
   const toggleIssueTag = (tag: IssueTag) => {
@@ -89,14 +122,17 @@ export function FrameLabelPanel({
   };
 
   const handleSave = async () => {
-
     if (!hasAnyTagSelection) {
+      // nothing selected -> don't save a label
       setIsEditing(false);
+      setEditingFrameIdx(null);
       return;
     }
-    
+
+    const idx = editingFrameIdx ?? frameIdx;
+
     const label: FrameLabel = {
-      frameIdx,
+      frameIdx: idx,
       phaseTag: phaseTag || null,
       issueTags,
       notes,
@@ -107,7 +143,7 @@ export function FrameLabelPanel({
     try {
       setLabelsByFrame((prev) => ({
         ...prev,
-        [frameIdx]: label,
+        [idx]: label,
       }));
 
       if (onSave) {
@@ -117,6 +153,7 @@ export function FrameLabelPanel({
       }
 
       setIsEditing(false);
+      setEditingFrameIdx(null);
     } finally {
       setIsSaving(false);
     }
@@ -146,7 +183,7 @@ export function FrameLabelPanel({
         </div>
         <button
           type="button"
-          onClick={startEditing}
+          onClick={() => startEditing()}
           className="rounded-md border border-slate-600 px-2 py-1 text-[11px] font-medium hover:bg-slate-800"
         >
           {existing ? "Edit label" : "Add label"}

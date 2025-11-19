@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 type QualityTag = "unlabeled" | "high" | "medium" | "low" | "unusable";
 
@@ -29,7 +29,7 @@ type EpisodeLabelPanelProps = {
   datasetId: string;
   episodeId: string;
   initialLabel?: EpisodeLabel | null;
-  onSave?: (label: EpisodeLabel) => void;
+  onSave?: (label: EpisodeLabel) => void | Promise<void>;
 };
 
 export function EpisodeLabelPanel({
@@ -39,22 +39,29 @@ export function EpisodeLabelPanel({
   initialLabel,
   onSave,
 }: EpisodeLabelPanelProps) {
-  const [qualityTag, setQualityTag] = useState<QualityTag>(
-    initialLabel?.qualityTag ?? "unlabeled",
-  );
-  const [keyNotes, setKeyNotes] = useState<KeyNoteTag[]>(
-    initialLabel?.keyNotes ?? [],
-  );
-  const [remarks, setRemarks] = useState<string>(
-    initialLabel?.remarks ?? "",
-  );
+  const [qualityTag, setQualityTag] = useState<QualityTag>("unlabeled");
+  const [keyNotes, setKeyNotes] = useState<KeyNoteTag[]>([]);
+  const [remarks, setRemarks] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync local state whenever initialLabel changes (e.g. after Supabase load)
+  useEffect(() => {
+    if (initialLabel) {
+      setQualityTag(initialLabel.qualityTag);
+      setKeyNotes(initialLabel.keyNotes ?? []);
+      setRemarks(initialLabel.remarks ?? "");
+    } else {
+      setQualityTag("unlabeled");
+      setKeyNotes([]);
+      setRemarks("");
+    }
+  }, [initialLabel]);
 
   const toggleKeyNote = (tag: KeyNoteTag) => {
     setKeyNotes((prev) =>
       prev.includes(tag)
-        ? prev.filter((t) => t !== tag) // remove if already there
-        : [...prev, tag],              // add if not
+        ? prev.filter((t) => t !== tag)
+        : [...prev, tag],
     );
   };
 

@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { useTime } from "../context/time-context";
 import {
@@ -14,16 +16,25 @@ import { debounce } from "@/utils/debounce";
 import { FrameLabelPanel, FrameLabel } from "@/components/frame-label-panel";
 
 type PlaybackBarProps = {
-  onFrameLabelSave?: (label: FrameLabel) => void;
+  onFrameLabelSave?: (label: FrameLabel) => void | Promise<void>;
+  frameLabels?: FrameLabel[];
 };
 
-const PlaybackBar: React.FC<PlaybackBarProps> = ({ onFrameLabelSave }) => {
+const FPS = 30;
+
+const PlaybackBar: React.FC<PlaybackBarProps> = ({
+  onFrameLabelSave,
+  frameLabels = [],
+}) => {
   const { duration, isPlaying, setIsPlaying, currentTime, setCurrentTime } =
     useTime();
 
   const sliderActiveRef = React.useRef(false);
   const wasPlayingRef = React.useRef(false);
   const [sliderValue, setSliderValue] = React.useState(currentTime);
+
+  // For clicking markers to open the editor for a specific frame
+  const [editFrameIdx, setEditFrameIdx] = React.useState<number | null>(null);
 
   // Only update sliderValue from context if not dragging
   React.useEffect(() => {
@@ -54,14 +65,19 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({ onFrameLabelSave }) => {
     if (wasPlayingRef.current) {
       setIsPlaying(true);
     }
-    // If it was paused before, keep it paused
   };
 
-    return (
+  return (
     <div className="w-full max-w-4xl mx-auto sticky bottom-0 mt-auto space-y-2">
-      {/* Frame labels, visually attached to the bar */}
-      <FrameLabelPanel onSave={onFrameLabelSave} />
-      {/* Playback controls */}
+      {/* Frame labels panel, visually attached above the bar */}
+      <FrameLabelPanel
+        onSave={onFrameLabelSave}
+        initialLabels={frameLabels}
+        editFrameIdx={editFrameIdx}
+        onEditFrameConsumed={() => setEditFrameIdx(null)}
+      />
+
+      {/* Playback controls pill + slider + markers */}
       <div className="flex items-center gap-4 w-full bg-slate-900/95 px-4 py-3 rounded-3xl">
         <button
           title="Jump backward 5 seconds"
@@ -71,7 +87,9 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({ onFrameLabelSave }) => {
           <FaBackward size={24} />
         </button>
         <button
-          className={`text-3xl transition-transform ${isPlaying ? "scale-90 opacity-60" : "scale-110"}`}
+          className={`text-3xl transition-transform ${
+            isPlaying ? "scale-90 opacity-60" : "scale-110"
+          }`}
           title="Play. Toggle with Space"
           onClick={() => setIsPlaying(true)}
           style={{ display: isPlaying ? "none" : "inline-block" }}
@@ -79,7 +97,9 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({ onFrameLabelSave }) => {
           <FaPlay size={24} />
         </button>
         <button
-          className={`text-3xl transition-transform ${!isPlaying ? "scale-90 opacity-60" : "scale-110"}`}
+          className={`text-3xl transition-transform ${
+            !isPlaying ? "scale-90 opacity-60" : "scale-110"
+          }`}
           title="Pause. Toggle with Space"
           onClick={() => setIsPlaying(false)}
           style={{ display: !isPlaying ? "none" : "inline-block" }}
@@ -100,20 +120,57 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({ onFrameLabelSave }) => {
         >
           <FaUndoAlt size={24} />
         </button>
-        <input
-          type="range"
-          min={0}
-          max={duration}
-          step={0.01}
-          value={sliderValue}
-          onChange={handleSliderChange}
-          onMouseDown={handleSliderMouseDown}
-          onMouseUp={handleSliderMouseUp}
-          onTouchStart={handleSliderMouseDown}
-          onTouchEnd={handleSliderMouseUp}
-          className="flex-1 mx-2 accent-orange-500 focus:outline-none focus:ring-0"
-          aria-label="Seek video"
-        />
+
+        {/* Slider + triangle markers */}
+        <div className="relative flex-1 mx-2">
+          <input
+            type="range"
+            min={0}
+            max={duration}
+            step={0.01}
+            value={sliderValue}
+            onChange={handleSliderChange}
+            onMouseDown={handleSliderMouseDown}
+            onMouseUp={handleSliderMouseUp}
+            onTouchStart={handleSliderMouseDown}
+            onTouchEnd={handleSliderMouseUp}
+            className="w-full accent-orange-500 focus:outline-none focus:ring-0 relative z-10"
+            aria-label="Seek video"
+          />
+
+          {/* Frame label markers as triangles above the bar */}
+          {duration > 0 && frameLabels.length > 0 && (
+            <div className="pointer-events-none absolute inset-x-0 -top-4 z-20">
+              {frameLabels.map((label) => {
+                const time = label.frameIdx / FPS;
+                if (!Number.isFinite(time) || time < 0 || time > duration) {
+                  return null;
+                }
+                const pct = (time / duration) * 100;
+
+                return (
+                  <button
+                    key={label.frameIdx}
+                    type="button"
+                    className="pointer-events-auto absolute -translate-x-1/2"
+                    style={{ left: `${pct}%` }}
+                    title={`Frame ${label.frameIdx} @ ${time.toFixed(2)}s`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentTime(time);
+                      setIsPlaying(false);
+                      setEditFrameIdx(label.frameIdx);
+                    }}
+                  >
+                    {/* Triangle marker */}
+                    <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-t-[10px] border-l-transparent border-r-transparent border-t-emerald-400 drop-shadow" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <span className="w-16 text-right tabular-nums text-xs text-slate-200 shrink-0">
           {Math.floor(sliderValue)} / {Math.floor(duration)}
         </span>
