@@ -102,6 +102,27 @@ export function FrameLabelPanel({
     setIsEditing(true);
   };
 
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const newIdx = Math.max(0, Math.round(currentTime * fps));
+    if (newIdx === editingFrameIdx) return;
+
+    const label = labelsByFrame[newIdx];
+
+    if (label) {
+      setPhaseTag(label.phaseTag ?? null);
+      setIssueTags(label.issueTags);
+      setNotes(label.notes);
+    } else {
+      setPhaseTag(null);
+      setIssueTags([]);
+      setNotes("");
+    }
+
+    setEditingFrameIdx(newIdx);
+  }, [currentTime, isEditing, editingFrameIdx, labelsByFrame, fps]);
+
   // React when playback bar asks us to edit a specific frame (flag click)
   useEffect(() => {
     if (editFrameIdx == null) return;

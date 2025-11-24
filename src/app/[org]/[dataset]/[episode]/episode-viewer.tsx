@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { postParentMessageWithParams } from "@/utils/postParentMessage";
 import { SimpleVideosPlayer } from "@/components/simple-videos-player";
@@ -87,6 +87,9 @@ function EpisodeViewerInner({
   // For now, mark videos/charts as ready so you can work on UI
   const [videosReady, setVideosReady] = useState(true);
   const [chartsReady, setChartsReady] = useState(true);
+  const handleVideosReady = useCallback(() => {
+    setVideosReady(true);
+  }, [setVideosReady]);
   const isLoading = !videosReady || !chartsReady;
 
   const router = useRouter();
@@ -360,7 +363,7 @@ function EpisodeViewerInner({
         {videosInfo.length > 0 && (
           <SimpleVideosPlayer
             videosInfo={videosInfo}
-            onVideosReady={() => setVideosReady(true)}
+            onVideosReady={handleVideosReady}
           />
         )}
 

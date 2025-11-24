@@ -24,6 +24,7 @@ export const SimpleVideosPlayer = ({
 }: VideoPlayerProps) => {
   const { currentTime, setCurrentTime, isPlaying, setIsPlaying } = useTime();
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const hasAutoPlayedRef = useRef(false);
   const [hiddenVideos, setHiddenVideos] = React.useState<string[]>([]);
   const [enlargedVideo, setEnlargedVideo] = React.useState<string | null>(null);
   const [showHiddenMenu, setShowHiddenMenu] = React.useState(false);
@@ -36,7 +37,8 @@ export const SimpleVideosPlayer = ({
   // Initialize video refs array
   useEffect(() => {
     videoRefs.current = videoRefs.current.slice(0, videosInfo.length);
-  }, [videosInfo.length]);
+    hasAutoPlayedRef.current = false;
+  }, [videosInfo]);
 
   // Handle videos ready
   useEffect(() => {
@@ -47,7 +49,10 @@ export const SimpleVideosPlayer = ({
       if (readyCount === videosInfo.length && onVideosReady) {
         setVideosReady(true);
         onVideosReady();
-        setIsPlaying(true);
+        if (!hasAutoPlayedRef.current) {
+          setIsPlaying(true);
+          hasAutoPlayedRef.current = true;
+        }
       }
     };
 
@@ -134,22 +139,36 @@ export const SimpleVideosPlayer = ({
   // Sync video times
   useEffect(() => {
     if (!videosReady) return;
+
+    const getTargetTime = (info: VideoInfo | undefined) => {
+      if (!info) return currentTime;
+      return info.isSegmented ? (info.segmentStart || 0) + currentTime : currentTime;
+    };
+
+    // Only force the leader to the new time when playback is paused (e.g. during scrubbing)
+    if (!isPlaying && firstVisibleIdx >= 0) {
+      const leader = videoRefs.current[firstVisibleIdx];
+      const leaderInfo = videosInfo[firstVisibleIdx];
+      if (leader && !hiddenVideos.includes(leaderInfo.filename)) {
+        leader.currentTime = getTargetTime(leaderInfo);
+      }
+    }
     
     videoRefs.current.forEach((video, index) => {
-      if (video && !hiddenVideos.includes(videosInfo[index].filename)) {
-        const info = videosInfo[index];
-        let targetTime = currentTime;
-        
-        if (info.isSegmented) {
-          targetTime = (info.segmentStart || 0) + currentTime;
-        }
-        
-        if (Math.abs(video.currentTime - targetTime) > 0.2) {
-          video.currentTime = targetTime;
-        }
+      if (
+        index === firstVisibleIdx ||
+        !video ||
+        hiddenVideos.includes(videosInfo[index]?.filename)
+      ) {
+        return;
+      }
+
+      const targetTime = getTargetTime(videosInfo[index]);
+      if (Math.abs(video.currentTime - targetTime) > 0.2) {
+        video.currentTime = targetTime;
       }
     });
-  }, [currentTime, videosInfo, videosReady, hiddenVideos]);
+  }, [currentTime, videosInfo, videosReady, hiddenVideos, firstVisibleIdx, isPlaying]);
 
   // Handle time update from first visible video
   const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -247,7 +266,9 @@ export const SimpleVideosPlayer = ({
                 </span>
               </p>
               <video
-                ref={el => videoRefs.current[idx] = el}
+                ref={(el) => {
+                  videoRefs.current[idx] = el;
+                }}
                 className={`w-full object-contain ${
                   isEnlarged ? "max-h-[90vh] max-w-[90vw]" : ""
                 }`}

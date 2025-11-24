@@ -141,7 +141,7 @@ export function EpisodeLabelPanel({
             type="button"
             onClick={handleSave}
             disabled={isSaving || !hasQualitySelection}
-            className="rounded-md border border-slate-500 px-3 py-1 text-xs font-medium hover:bg-slate-800 disabled:opacity-60"
+            className="rounded-md bg-emerald-500 px-3 py-1 text-xs font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
           >
             {isSaving ? "Saving…" : "Save"}
           </button>
