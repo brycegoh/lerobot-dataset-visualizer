@@ -145,12 +145,18 @@ export const SimpleVideosPlayer = ({
       return info.isSegmented ? (info.segmentStart || 0) + currentTime : currentTime;
     };
 
-    // Only force the leader to the new time when playback is paused (e.g. during scrubbing)
-    if (!isPlaying && firstVisibleIdx >= 0) {
+    // Sync the leader video to context time (only on significant jumps)
+    if (firstVisibleIdx >= 0) {
       const leader = videoRefs.current[firstVisibleIdx];
       const leaderInfo = videosInfo[firstVisibleIdx];
       if (leader && !hiddenVideos.includes(leaderInfo.filename)) {
-        leader.currentTime = getTargetTime(leaderInfo);
+        const targetTime = getTargetTime(leaderInfo);
+        
+        // Only sync if difference > 0.5s (user seek, not playback drift)
+        if (Math.abs(leader.currentTime - targetTime) > 0.5) {
+          console.log('[Sync] Leader (BIG JUMP)', leader.currentTime.toFixed(2), '→', targetTime.toFixed(2));
+          leader.currentTime = targetTime;
+        }
       }
     }
     
@@ -165,6 +171,7 @@ export const SimpleVideosPlayer = ({
 
       const targetTime = getTargetTime(videosInfo[index]);
       if (Math.abs(video.currentTime - targetTime) > 0.2) {
+        console.log('[Sync] Video', index, video.currentTime.toFixed(2), '→', targetTime.toFixed(2));
         video.currentTime = targetTime;
       }
     });
@@ -181,6 +188,8 @@ export const SimpleVideosPlayer = ({
       if (info.isSegmented) {
         globalTime = video.currentTime - (info.segmentStart || 0);
       }
+      
+      console.log('[TimeUpdate]', globalTime.toFixed(2), 'from video', videoIndex);
       setCurrentTime(globalTime);
     }
   };

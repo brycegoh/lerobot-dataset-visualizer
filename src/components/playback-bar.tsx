@@ -46,6 +46,7 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   }, [currentTime]);
 
   const updateTime = debounce((t: number) => {
+    console.log('[Slider] Debounced setCurrentTime:', t.toFixed(2));
     setCurrentTime(t);
   }, 200);
 
@@ -56,15 +57,18 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   };
 
   const handleSliderMouseDown = () => {
+    console.log('[Slider] MouseDown - pausing');
     sliderActiveRef.current = true;
     wasPlayingRef.current = isPlaying;
     setIsPlaying(false);
   };
 
   const handleSliderMouseUp = () => {
+    console.log('[Slider] MouseUp - seeking to:', sliderValue.toFixed(2));
     sliderActiveRef.current = false;
     setCurrentTime(sliderValue); // Snap to final value
     if (wasPlayingRef.current) {
+      console.log('[Slider] MouseUp - resuming play');
       setIsPlaying(true);
     }
   };
@@ -84,7 +88,10 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
       <div className="flex items-center gap-4 w-full bg-slate-900/95 px-4 py-3 rounded-3xl">
         <button
           title="Jump backward 5 seconds"
-          onClick={() => setCurrentTime(Math.max(0, currentTime - 5))}
+          onClick={() => {
+            setIsPlaying(false);
+            setCurrentTime(Math.max(0, currentTime - 5));
+          }}
           className="text-2xl hidden md:block"
         >
           <FaBackward size={24} />
@@ -111,14 +118,20 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
         </button>
         <button
           title="Jump forward 5 seconds"
-          onClick={() => setCurrentTime(Math.min(duration, currentTime + 5))}
+          onClick={() => {
+            setIsPlaying(false);
+            setCurrentTime(Math.min(duration, currentTime + 5));
+          }}
           className="text-2xl hidden md:block"
         >
           <FaForward size={24} />
         </button>
         <button
           title="Rewind from start"
-          onClick={() => setCurrentTime(0)}
+          onClick={() => {
+            setIsPlaying(false);
+            setCurrentTime(0);
+          }}
           className="text-2xl hidden md:block"
         >
           <FaUndoAlt size={24} />
@@ -160,8 +173,8 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
                     title={`Frame ${label.frameIdx} @ ${time.toFixed(2)}s`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCurrentTime(time);
                       setIsPlaying(false);
+                      setCurrentTime(time);
                       setEditFrameIdx(label.frameIdx);
                     }}
                   >
