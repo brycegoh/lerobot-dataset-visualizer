@@ -181,16 +181,18 @@ function EpisodeViewerInner({
     };
   }, [episodes, episodeId, pageSize, router, setIsPlaying]);
 
-  // Only update URL ?t= param when the integer second changes
-  const lastUrlSecondRef = useRef<number>(-1);
+  // Update URL ?t= param when paused, preserving fractional seconds
+  const lastUrlTimeRef = useRef<number>(-1);
   useEffect(() => {
     if (isPlaying) return;
 
-    const currentSec = Math.floor(currentTime);
-    if (currentTime > 0 && lastUrlSecondRef.current !== currentSec) {
-      lastUrlSecondRef.current = currentSec;
+    // Round to 2 decimal places to preserve frame precision
+    const roundedTime = Math.round(currentTime * 100) / 100;
+    
+    if (currentTime > 0 && Math.abs(lastUrlTimeRef.current - roundedTime) > 0.01) {
+      lastUrlTimeRef.current = roundedTime;
       const newParams = new URLSearchParams(searchParams.toString());
-      newParams.set("t", currentSec.toString());
+      newParams.set("t", roundedTime.toString());
 
       window.history.replaceState(
         {},
