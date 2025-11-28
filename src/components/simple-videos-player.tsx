@@ -154,7 +154,7 @@ export const SimpleVideosPlayer = ({
         
         // Only sync if difference > 0.5s (user seek, not playback drift)
         if (Math.abs(leader.currentTime - targetTime) > 0.5) {
-          console.log('[Sync] Leader (BIG JUMP)', leader.currentTime.toFixed(2), '→', targetTime.toFixed(2));
+          // console.log('[Sync] Leader (BIG JUMP)', leader.currentTime.toFixed(2), '→', targetTime.toFixed(2));
           leader.currentTime = targetTime;
         }
       }
@@ -171,7 +171,7 @@ export const SimpleVideosPlayer = ({
 
       const targetTime = getTargetTime(videosInfo[index]);
       if (Math.abs(video.currentTime - targetTime) > 0.2) {
-        console.log('[Sync] Video', index, video.currentTime.toFixed(2), '→', targetTime.toFixed(2));
+        // console.log('[Sync] Video', index, video.currentTime.toFixed(2), '→', targetTime.toFixed(2));
         video.currentTime = targetTime;
       }
     });
@@ -189,7 +189,7 @@ export const SimpleVideosPlayer = ({
         globalTime = video.currentTime - (info.segmentStart || 0);
       }
       
-      console.log('[TimeUpdate]', globalTime.toFixed(2), 'from video', videoIndex);
+      // console.log('[TimeUpdate]', globalTime.toFixed(2), 'from video', videoIndex);
       setCurrentTime(globalTime);
     }
   };

@@ -236,15 +236,10 @@ export function FrameLabelPanel({
       {isEditing && (
         <div className="space-y-3 border-t border-slate-700 pt-3">
           {/* Phase */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-medium text-slate-300">
-                Phase:
-              </label>
-              <span className="text-[10px] text-slate-500">
-                Tap to select (required)
-              </span>
-            </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-slate-300">
+              Phase (required):
+            </label>
             <div className="flex flex-wrap gap-2">
               {PHASE_TAG_OPTIONS.map((tag) => {
                 const active = phaseTag === tag;
@@ -255,7 +250,7 @@ export function FrameLabelPanel({
                     onClick={() =>
                       setPhaseTag((prev) => (prev === tag ? null : tag))
                     }
-                    className={`rounded-full border px-2 py-1 text-[11px] ${
+                    className={`rounded-full border px-3 py-1.5 text-xs ${
                       active
                         ? "bg-emerald-400 text-slate-900 border-emerald-300"
                         : "bg-slate-900 text-slate-100 border-slate-600"
@@ -269,15 +264,10 @@ export function FrameLabelPanel({
           </div>
 
           {/* Issues */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-[11px] font-medium text-slate-300">
-                Issues:
-              </label>
-              <span className="text-[10px] text-slate-500">
-                Click to toggle
-              </span>
-            </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-slate-300">
+              Issues:
+            </label>
             <div className="flex flex-wrap gap-2">
               {ISSUE_TAG_OPTIONS.map((tag) => {
                 const active = issueTags.includes(tag);
@@ -286,7 +276,7 @@ export function FrameLabelPanel({
                     key={tag}
                     type="button"
                     onClick={() => toggleIssueTag(tag)}
-                    className={`rounded-full border px-2 py-1 text-[11px] ${
+                    className={`rounded-full border px-3 py-1.5 text-xs ${
                       active
                         ? "bg-slate-100 text-slate-900 border-slate-100"
                         : "bg-slate-900 text-slate-100 border-slate-600"
@@ -301,7 +291,7 @@ export function FrameLabelPanel({
 
           {/* Notes */}
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-300">
               Notes:
             </label>
             <textarea

@@ -46,7 +46,7 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   }, [currentTime]);
 
   const updateTime = debounce((t: number) => {
-    console.log('[Slider] Debounced setCurrentTime:', t.toFixed(2));
+    // console.log('[Slider] Debounced setCurrentTime:', t.toFixed(2));
     setCurrentTime(t);
   }, 200);
 
@@ -57,18 +57,18 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   };
 
   const handleSliderMouseDown = () => {
-    console.log('[Slider] MouseDown - pausing');
+    // console.log('[Slider] MouseDown - pausing');
     sliderActiveRef.current = true;
     wasPlayingRef.current = isPlaying;
     setIsPlaying(false);
   };
 
   const handleSliderMouseUp = () => {
-    console.log('[Slider] MouseUp - seeking to:', sliderValue.toFixed(2));
+    // console.log('[Slider] MouseUp - seeking to:', sliderValue.toFixed(2));
     sliderActiveRef.current = false;
     setCurrentTime(sliderValue); // Snap to final value
     if (wasPlayingRef.current) {
-      console.log('[Slider] MouseUp - resuming play');
+      // console.log('[Slider] MouseUp - resuming play');
       setIsPlaying(true);
     }
   };

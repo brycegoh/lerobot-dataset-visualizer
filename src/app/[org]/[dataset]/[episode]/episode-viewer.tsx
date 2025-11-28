@@ -369,24 +369,6 @@ function EpisodeViewerInner({
           />
         )}
 
-        {/* Language Instruction */}
-        {task && (
-          <div className="mb-3 rounded-lg border border-slate-600 bg-slate-800 p-3">
-            <p className="text-slate-300">
-              <span className="font-semibold text-slate-100">
-                Language Instruction:
-              </span>
-            </p>
-            <div className="mt-2 text-slate-300">
-              {task.split("\n").map((instruction: string, index: number) => (
-                <p key={index} className="mb-1">
-                  {instruction}
-                </p>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Episode-level labels */}
         <EpisodeLabelPanel
           orgId={effectiveOrg}
@@ -420,6 +402,24 @@ function EpisodeViewerInner({
           }}
           onClearAll={handleClearAllLabels}
         />
+
+        {/* Language Instruction */}
+        {task && (
+          <div className="mt-2 rounded-lg border border-slate-600 bg-slate-800 p-3">
+            <p className="text-slate-300">
+              <span className="font-semibold text-slate-100">
+                Language Instruction:
+              </span>
+            </p>
+            <div className="mt-2 text-slate-300">
+              {task.split("\n").map((instruction: string, index: number) => (
+                <p key={index} className="mb-1">
+                  {instruction}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Graph */}
         <div className="mb-4">
