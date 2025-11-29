@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { postParentMessageWithParams } from "@/utils/postParentMessage";
 import { SimpleVideosPlayer } from "@/components/simple-videos-player";
@@ -94,7 +94,7 @@ function EpisodeViewerInner({
     } else {
       setLabellerId(stored);
     }
-  }, [router]);
+  }, []); // Run once on mount only
 
   // Episode + frame labels state
   const [episodeLabel, setEpisodeLabel] = useState<EpisodeLabel | null>(null);
@@ -105,7 +105,7 @@ function EpisodeViewerInner({
   const [chartsReady, setChartsReady] = useState(true);
   const handleVideosReady = useCallback(() => {
     setVideosReady(true);
-  }, [setVideosReady]);
+  }, []); // setState is stable, no dependencies needed
   const isLoading = !videosReady || !chartsReady;
 
   const searchParams = useSearchParams();
@@ -117,9 +117,9 @@ function EpisodeViewerInner({
   const pageSize = 100;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(episodes.length / pageSize);
-  const paginatedEpisodes = episodes.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize,
+  const paginatedEpisodes = useMemo(
+    () => episodes.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [episodes, currentPage, pageSize]
   );
 
   // Preload adjacent episodes' videos (for smoother navigation)

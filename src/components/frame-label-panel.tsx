@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
@@ -105,10 +105,16 @@ export function FrameLabelPanel({
     setIsEditing(true);
   };
 
+  // Throttle effect to skip duplicate frame checks
+  const lastCheckedFrameRef = useRef<number>(-1);
+
   useEffect(() => {
     if (!isEditing) return;
 
     const newIdx = Math.max(0, Math.round(currentTime * fps));
+    if (newIdx === lastCheckedFrameRef.current) return; // Skip if already checked this frame
+    lastCheckedFrameRef.current = newIdx;
+    
     if (newIdx === editingFrameIdx) return;
 
     const label = labelsByFrame[newIdx];
@@ -126,13 +132,19 @@ export function FrameLabelPanel({
     setEditingFrameIdx(newIdx);
   }, [currentTime, isEditing, editingFrameIdx, labelsByFrame, fps]);
 
+  // Store functions in refs to avoid stale closures
+  const startEditingRef = useRef(startEditing);
+  startEditingRef.current = startEditing;
+
+  const onEditFrameConsumedRef = useRef(onEditFrameConsumed);
+  onEditFrameConsumedRef.current = onEditFrameConsumed;
+
   // React when playback bar asks us to edit a specific frame (flag click)
   useEffect(() => {
     if (editFrameIdx == null) return;
-    startEditing(editFrameIdx);
-    if (onEditFrameConsumed) onEditFrameConsumed();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editFrameIdx]);
+    startEditingRef.current(editFrameIdx);
+    onEditFrameConsumedRef.current?.();
+  }, [editFrameIdx]); // Only editFrameIdx, refs are stable
 
   const cancelEditing = () => {
     setIsEditing(false);
