@@ -16,6 +16,7 @@ import { debounce } from "@/utils/debounce";
 import { FrameLabelPanel, FrameLabel } from "@/components/frame-label-panel";
 
 type PlaybackBarProps = {
+  labellerId: string;
   onFrameLabelSave?: (label: FrameLabel) => void | Promise<void>;
   onFrameLabelDelete?: (frameIdx: number) => void | Promise<void>; // NEW
   frameLabels?: FrameLabel[];
@@ -24,6 +25,7 @@ type PlaybackBarProps = {
 const FPS = 30;
 
 const PlaybackBar: React.FC<PlaybackBarProps> = ({
+  labellerId,
   onFrameLabelSave,
   onFrameLabelDelete,
   frameLabels = [],
@@ -77,6 +79,7 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
     <div className="w-full max-w-4xl mx-auto sticky bottom-0 mt-auto space-y-2">
       {/* Frame labels panel, visually attached above the bar */}
       <FrameLabelPanel
+        labellerId={labellerId}
         onSave={onFrameLabelSave}
         onDelete={onFrameLabelDelete}
         initialLabels={frameLabels}

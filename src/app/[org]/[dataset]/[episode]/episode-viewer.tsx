@@ -80,6 +80,22 @@ function EpisodeViewerInner({
   const effectiveDataset =
     dataset ?? datasetFromRepo ?? datasetInfo.repoId ?? "unknown-dataset";
 
+  const router = useRouter();
+
+  // Get labeller ID from localStorage
+  const [labellerId, setLabellerId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const stored = localStorage.getItem("labeller_id");
+    if (!stored) {
+      // Redirect to home if no labeller ID
+      alert("Please enter your Labeller ID first");
+      router.push("/");
+    } else {
+      setLabellerId(stored);
+    }
+  }, [router]);
+
   // Episode + frame labels state
   const [episodeLabel, setEpisodeLabel] = useState<EpisodeLabel | null>(null);
   const [frameLabels, setFrameLabels] = useState<FrameLabel[]>([]);
@@ -92,7 +108,6 @@ function EpisodeViewerInner({
   }, [setVideosReady]);
   const isLoading = !videosReady || !chartsReady;
 
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Use context for time sync
@@ -208,16 +223,19 @@ function EpisodeViewerInner({
 
   // Load episode + frame labels from Supabase whenever org/dataset/episode changes
   useEffect(() => {
+    if (!labellerId) return; // Wait for labeller ID
+    
     const loadLabels = async () => {
       const episodeIdStr = String(episodeId);
 
       // Episode-level label
       const { data: epData, error: epError } = await supabase
         .from("episode_labels")
-        .select("quality_tag,key_notes,remarks,updated_at")
+        .select("labeller_id,quality_tag,key_notes,remarks,updated_at")
         .eq("org_id", effectiveOrg)
         .eq("dataset_id", effectiveDataset)
         .eq("episode_id", episodeIdStr)
+        .eq("labeller_id", labellerId)
         .maybeSingle();
 
       if (epError && epError.code !== "PGRST116") {
@@ -229,6 +247,7 @@ function EpisodeViewerInner({
           orgId: effectiveOrg,
           datasetId: effectiveDataset,
           episodeId: episodeIdStr,
+          labellerId: epData.labeller_id,
           qualityTag: epData.quality_tag,
           keyNotes: epData.key_notes ?? [],
           remarks: epData.remarks ?? "",
@@ -241,10 +260,11 @@ function EpisodeViewerInner({
       // Frame-level labels
       const { data: frData, error: frError } = await supabase
         .from("frame_labels")
-        .select("frame_idx,phase_tag,issue_tags,notes,updated_at")
+        .select("frame_idx,labeller_id,phase_tag,issue_tags,notes,updated_at")
         .eq("org_id", effectiveOrg)
         .eq("dataset_id", effectiveDataset)
         .eq("episode_id", episodeIdStr)
+        .eq("labeller_id", labellerId)
         .order("frame_idx", { ascending: true });
 
       if (frError) {
@@ -254,6 +274,7 @@ function EpisodeViewerInner({
         setFrameLabels(
           frData.map((row: any) => ({
             frameIdx: row.frame_idx,
+            labellerId: row.labeller_id,
             phaseTag: row.phase_tag,
             issueTags: row.issue_tags ?? [],
             notes: row.notes ?? "",
@@ -268,7 +289,7 @@ function EpisodeViewerInner({
     if (effectiveOrg && effectiveDataset && episodeId !== undefined) {
       loadLabels();
     }
-  }, [effectiveOrg, effectiveDataset, episodeId]);
+  }, [effectiveOrg, effectiveDataset, episodeId, labellerId]);
 
   // Pagination functions
   const nextPage = () => {
@@ -285,6 +306,8 @@ function EpisodeViewerInner({
 
   // Clear all labels for this episode (episode + frames)
   const handleClearAllLabels = async () => {
+    if (!labellerId) return;
+    
     const episodeIdStr = String(episodeId);
 
     const { error: frameErr } = await supabase
@@ -292,7 +315,8 @@ function EpisodeViewerInner({
       .delete()
       .eq("org_id", effectiveOrg)
       .eq("dataset_id", effectiveDataset)
-      .eq("episode_id", episodeIdStr);
+      .eq("episode_id", episodeIdStr)
+      .eq("labeller_id", labellerId);
 
     if (frameErr) {
       console.error("Error clearing frame labels", frameErr);
@@ -303,7 +327,8 @@ function EpisodeViewerInner({
       .delete()
       .eq("org_id", effectiveOrg)
       .eq("dataset_id", effectiveDataset)
-      .eq("episode_id", episodeIdStr);
+      .eq("episode_id", episodeIdStr)
+      .eq("labeller_id", labellerId);
 
     if (epErr) {
       console.error("Error clearing episode label", epErr);
@@ -312,6 +337,15 @@ function EpisodeViewerInner({
     setFrameLabels([]);
     setEpisodeLabel(null);
   };
+
+  // Don't render until we have labeller ID
+  if (!labellerId) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-200">
+        <Loading />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen max-h-screen bg-slate-950 text-gray-200">
@@ -334,30 +368,37 @@ function EpisodeViewerInner({
       >
         {isLoading && <Loading />}
 
-        <div className="my-4 flex items-center justify-start">
-          <a
-            href="https://github.com/huggingface/lerobot"
-            target="_blank"
-            className="block"
-          >
-            <img
-              src="https://github.com/huggingface/lerobot/raw/main/media/lerobot-logo-thumbnail.png"
-              alt="LeRobot Logo"
-              className="w-32"
-            />
-          </a>
-
-          <div>
+        <div className="my-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
             <a
-              href={`https://huggingface.co/datasets/${datasetInfo.repoId}`}
+              href="https://github.com/huggingface/lerobot"
               target="_blank"
+              className="block"
             >
-              <p className="text-lg font-semibold">{datasetInfo.repoId}</p>
+              <img
+                src="https://github.com/huggingface/lerobot/raw/main/media/lerobot-logo-thumbnail.png"
+                alt="LeRobot Logo"
+                className="w-32"
+              />
             </a>
 
-            <p className="font-mono text-lg font-semibold">
-              episode {episodeId}
-            </p>
+            <div>
+              <a
+                href={`https://huggingface.co/datasets/${datasetInfo.repoId}`}
+                target="_blank"
+              >
+                <p className="text-lg font-semibold">{datasetInfo.repoId}</p>
+              </a>
+
+              <p className="font-mono text-lg font-semibold">
+                episode {episodeId}
+              </p>
+            </div>
+          </div>
+          
+          <div className="text-sm text-slate-400">
+            <span className="font-medium">Labeller:</span>{" "}
+            <span className="font-mono text-slate-300">{labellerId}</span>
           </div>
         </div>
 
@@ -374,9 +415,21 @@ function EpisodeViewerInner({
           orgId={effectiveOrg}
           datasetId={effectiveDataset}
           episodeId={String(episodeId)}
+          labellerId={labellerId}
           initialLabel={episodeLabel ?? undefined}
           onSave={async (label) => {
-            const { qualityTag, keyNotes, remarks, updatedAt } = label;
+            const { labellerId, qualityTag, keyNotes, remarks, updatedAt } = label;
+
+            // Ensure labeller exists in labellers table
+            await supabase
+              .from("labellers")
+              .upsert(
+                {
+                  id: labellerId,
+                  name: labellerId,
+                },
+                { onConflict: "id" },
+              );
 
             const { error } = await supabase
               .from("episode_labels")
@@ -385,6 +438,7 @@ function EpisodeViewerInner({
                   org_id: effectiveOrg,
                   dataset_id: effectiveDataset,
                   episode_id: String(episodeId),
+                  labeller_id: labellerId,
                   quality_tag: qualityTag,
                   key_notes: keyNotes,
                   remarks,
@@ -432,8 +486,20 @@ function EpisodeViewerInner({
         {/* Playback + frame-level labels */}
         <PlaybackBar
           frameLabels={frameLabels}
+          labellerId={labellerId}
           onFrameLabelSave={async (label) => {
-            const { frameIdx, phaseTag, issueTags, notes, updatedAt } = label;
+            const { frameIdx, labellerId, phaseTag, issueTags, notes, updatedAt } = label;
+
+            // Ensure labeller exists in labellers table
+            await supabase
+              .from("labellers")
+              .upsert(
+                {
+                  id: labellerId,
+                  name: labellerId,
+                },
+                { onConflict: "id" },
+              );
 
             const { error } = await supabase
               .from("frame_labels")
@@ -443,6 +509,7 @@ function EpisodeViewerInner({
                   dataset_id: effectiveDataset,
                   episode_id: String(episodeId),
                   frame_idx: frameIdx,
+                  labeller_id: labellerId,
                   phase_tag: phaseTag,
                   issue_tags: issueTags,
                   notes,

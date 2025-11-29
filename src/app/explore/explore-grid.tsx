@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,6 +17,23 @@ export default function ExploreGrid({
   currentPage,
   totalPages,
 }: ExploreGridProps) {
+  const router = useRouter();
+  const [labellerId, setLabellerId] = useState<string | null>(null);
+
+  // Check for labeller ID on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("labeller_id");
+    setLabellerId(stored);
+  }, []);
+
+  const handleDatasetClick = (e: React.MouseEvent, datasetId: string) => {
+    if (!labellerId) {
+      e.preventDefault();
+      alert("Please enter your Labeller ID first");
+      router.push("/");
+      return;
+    }
+  };
   // sync with parent window hf.co/spaces
   useEffect(() => {
     postParentMessageWithParams((params: URLSearchParams) => {
@@ -29,12 +46,21 @@ export default function ExploreGrid({
 
   return (
     <main className="p-8">
-      <h1 className="text-2xl font-bold mb-6">Explore LeRobot Datasets</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Explore LeRobot Datasets</h1>
+        {labellerId && (
+          <div className="text-sm text-slate-600">
+            <span className="font-medium">Labeller:</span>{" "}
+            <span className="font-mono text-slate-800">{labellerId}</span>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {datasets.map((ds, idx) => (
           <Link
             key={ds.id}
             href={`/${ds.id}`}
+            onClick={(e) => handleDatasetClick(e, ds.id)}
             className="relative border rounded-lg p-4 bg-white shadow hover:shadow-lg transition overflow-hidden h-48 flex items-end group"
             onMouseEnter={() => {
               const vid = videoRefs.current[idx];

@@ -27,6 +27,7 @@ type IssueTag = (typeof ISSUE_TAG_OPTIONS)[number];
 
 export type FrameLabel = {
   frameIdx: number;
+  labellerId: string;
   phaseTag: PhaseTag | null;
   issueTags: IssueTag[];
   notes: string;
@@ -34,6 +35,7 @@ export type FrameLabel = {
 };
 
 type FrameLabelPanelProps = {
+  labellerId: string;
   initialLabels?: FrameLabel[];
   onSave?: (label: FrameLabel) => void | Promise<void>;
   onDelete?: (frameIdx: number) => void | Promise<void>;
@@ -42,6 +44,7 @@ type FrameLabelPanelProps = {
 };
 
 export function FrameLabelPanel({
+  labellerId,
   initialLabels = [],
   onSave,
   onDelete,
@@ -154,6 +157,7 @@ export function FrameLabelPanel({
 
     const label: FrameLabel = {
       frameIdx: idx,
+      labellerId,
       phaseTag,
       issueTags,
       notes,

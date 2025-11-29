@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, Suspense } from "react";
+import { useEffect, useRef, Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
@@ -15,6 +15,16 @@ export default function Home() {
 function HomeInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [labellerId, setLabellerId] = useState<string>("");
+  const [datasetInput, setDatasetInput] = useState<string>("");
+
+  // Load labeller ID from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("labeller_id");
+    if (stored) {
+      setLabellerId(stored);
+    }
+  }, []);
 
   // Handle redirects with useEffect instead of direct redirect
   useEffect(() => {
@@ -100,12 +110,24 @@ function HomeInner() {
   }, []);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const labellerIdRef = useRef<HTMLInputElement>(null);
 
   const handleGo = (e: React.FormEvent) => {
     e.preventDefault();
-    const value = inputRef.current?.value.trim();
-    if (value) {
-      router.push(value);
+    const datasetValue = inputRef.current?.value.trim();
+    const labellerValue = labellerIdRef.current?.value.trim();
+    
+    if (datasetValue && labellerValue) {
+      // Validate labeller ID: no spaces
+      if (labellerValue.includes(" ")) {
+        alert("Labeller ID cannot contain spaces");
+        return;
+      }
+      
+      // Store labeller ID in localStorage
+      localStorage.setItem("labeller_id", labellerValue);
+      
+      router.push(datasetValue);
     }
   };
 
@@ -130,23 +152,27 @@ function HomeInner() {
         >
           create & train your own robots
         </a>
-        <form onSubmit={handleGo} className="flex gap-2 justify-center mt-6">
+        <form onSubmit={handleGo} className="flex flex-col gap-3 justify-center mt-6 min-w-[320px]">
+          <input
+            ref={labellerIdRef}
+            type="text"
+            placeholder="Enter your labeller ID (e.g. test_user)"
+            value={labellerId}
+            onChange={(e) => setLabellerId(e.target.value)}
+            className="px-4 py-2 rounded-md text-base text-white bg-slate-900/80 placeholder-slate-400 border border-sky-500/50 focus:outline-none focus:bg-slate-900 focus:ring-2 focus:ring-sky-400 focus:border-sky-400 shadow-md transition-all"
+          />
           <input
             ref={inputRef}
             type="text"
             placeholder="Enter dataset id (e.g. lerobot/visualize_dataset)"
-            className="px-4 py-2 rounded-md text-base text-white border-white border-1 focus:outline-none min-w-[220px] shadow-md"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                // Prevent double submission if form onSubmit also fires
-                e.preventDefault();
-                handleGo(e as any);
-              }
-            }}
+            value={datasetInput}
+            onChange={(e) => setDatasetInput(e.target.value)}
+            className="px-4 py-2 rounded-md text-base text-white bg-slate-900/80 placeholder-slate-400 border border-sky-500/50 focus:outline-none focus:bg-slate-900 focus:ring-2 focus:ring-sky-400 focus:border-sky-400 shadow-md transition-all"
           />
           <button
             type="submit"
-            className="px-5 py-2 rounded-md bg-sky-400 text-black font-semibold text-base hover:bg-sky-300 transition-colors shadow-md"
+            disabled={!labellerId.trim() || !datasetInput.trim()}
+            className="px-5 py-2 rounded-md bg-sky-400 text-black font-semibold text-base hover:bg-sky-300 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Go
           </button>
@@ -165,9 +191,23 @@ function HomeInner() {
                 type="button"
                 className="px-4 py-2 rounded bg-slate-700 text-sky-200 hover:bg-sky-700 hover:text-white transition-colors shadow"
                 onClick={() => {
-                  if (inputRef.current) {
+                  if (inputRef.current && labellerIdRef.current) {
+                    const labellerValue = labellerIdRef.current.value.trim();
+                    
+                    if (!labellerValue) {
+                      alert("Please enter your Labeller ID first");
+                      labellerIdRef.current.focus();
+                      return;
+                    }
+                    
+                    if (labellerValue.includes(" ")) {
+                      alert("Labeller ID cannot contain spaces");
+                      return;
+                    }
+                    
                     inputRef.current.value = ds;
-                    inputRef.current.focus();
+                    setDatasetInput(ds);
+                    localStorage.setItem("labeller_id", labellerValue);
                   }
                   router.push(ds);
                 }}

@@ -25,6 +25,7 @@ export type EpisodeLabel = {
   orgId: string;
   datasetId: string;
   episodeId: string;
+  labellerId: string;
   qualityTag: QualityTag;
   keyNotes: KeyNoteTag[];
   remarks: string;
@@ -35,6 +36,7 @@ type EpisodeLabelPanelProps = {
   orgId: string;
   datasetId: string;
   episodeId: string;
+  labellerId: string;
   initialLabel?: EpisodeLabel | null;
   onSave?: (label: EpisodeLabel) => void | Promise<void>;
   onClearAll?: () => void | Promise<void>;
@@ -44,6 +46,7 @@ export function EpisodeLabelPanel({
   orgId,
   datasetId,
   episodeId,
+  labellerId,
   initialLabel,
   onSave,
   onClearAll,
@@ -85,6 +88,7 @@ export function EpisodeLabelPanel({
       orgId,
       datasetId,
       episodeId,
+      labellerId,
       qualityTag: qualityTag!, // we know it's not null here
       keyNotes,
       remarks,
