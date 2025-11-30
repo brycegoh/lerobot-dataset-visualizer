@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
@@ -24,6 +24,35 @@ const ISSUE_TAG_OPTIONS = [
 ] as const;
 
 type IssueTag = (typeof ISSUE_TAG_OPTIONS)[number];
+
+// Define which issue tags should appear in pairs
+const PAIRED_ISSUE_TAGS = [
+  { 
+    tagA: "failed_pick", 
+    tagB: "litter_dropped",
+    description: "Failed picks should have corresponding drops"
+  },
+  // Easy to add more pairs as needed
+] as const;
+
+// Validation function (pure function, outside component for performance)
+function checkPairedIssueTags(allLabels: FrameLabel[]): string[] {
+  const warnings: string[] = [];
+  
+  PAIRED_ISSUE_TAGS.forEach(pair => {
+    // Count frames with each tag
+    const countA = allLabels.filter(l => l.issueTags.includes(pair.tagA)).length;
+    const countB = allLabels.filter(l => l.issueTags.includes(pair.tagB)).length;
+    
+    if (countA !== countB) {
+      warnings.push(
+        `${pair.tagA} (${countA}×) should match ${pair.tagB} (${countB}×)`
+      );
+    }
+  });
+  
+  return warnings;
+}
 
 export type FrameLabel = {
   frameIdx: number;
@@ -53,6 +82,14 @@ export function FrameLabelPanel({
 }: FrameLabelPanelProps) {
   const { currentTime, setIsPlaying } = useTime();
   const fps = 30;
+
+  // Check pairing based on committed labels from DB (initialLabels)
+  // NOT local unsaved edits (labelsByFrame)
+  // Warnings update after save when parent reloads from DB
+  const pairingWarnings = useMemo(
+    () => checkPairedIssueTags(initialLabels),
+    [initialLabels]
+  );
 
   // Map frameIdx -> label, seeded from initialLabels
   const [labelsByFrame, setLabelsByFrame] = useState<Record<number, FrameLabel>>(
@@ -346,6 +383,20 @@ export function FrameLabelPanel({
               {isSaving ? "Saving…" : "Save frame label"}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Pairing warnings - only shows when tags are unpaired */}
+      {pairingWarnings.length > 0 && (
+        <div className="mt-2 p-2 rounded bg-yellow-900/20 border border-yellow-600/40">
+          <div className="text-[10px] font-semibold text-yellow-400 mb-1">
+            Issue Tag Pairing:
+          </div>
+          {pairingWarnings.map((warning, i) => (
+            <div key={i} className="text-[10px] text-yellow-300">
+              • {warning}
+            </div>
+          ))}
         </div>
       )}
     </section>
