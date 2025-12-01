@@ -7,15 +7,13 @@ const env = (globalThis as any)?.process?.env ?? {};
 
 const supabaseUrl = 
   env.NEXT_PUBLIC_SUPABASE_URL ||
-  env.SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  ;
+  env.SUPABASE_URL;
 
 const supabaseAnonKey = 
   env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  env.SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  ;
+  env.SUPABASE_ANON_KEY;
 
+
+console.log(supabaseUrl, supabaseAnonKey);
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
