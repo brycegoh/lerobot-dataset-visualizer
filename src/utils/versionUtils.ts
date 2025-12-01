@@ -30,9 +30,8 @@ export async function fetchDatasetInfoFromApi(repoId: string, version: string = 
   // Determine base URL for API calls
   // In server context, we need absolute URL; in client, relative works
   const baseUrl = typeof window === "undefined" 
-    ? process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : "http://localhost:3000"
+    ? (process.env.NEXT_PUBLIC_BASE_URL || 
+       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"))
     : "";
   
   const apiUrl = `${baseUrl}/api/dataset-info?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;

@@ -1,10 +1,9 @@
 export function getHfAuthHeaders(url?: string): HeadersInit {
-  const env = (globalThis as any)?.process?.env ?? {};
   const token =
-    env.HF_TOKEN ||
-    env.HUGGINGFACE_TOKEN ||
-    env.HF_ACCESS_TOKEN ||
-    env.HUGGINGFACEHUB_API_TOKEN;
+    process.env.HF_TOKEN ||
+    process.env.HUGGINGFACE_TOKEN ||
+    process.env.HF_ACCESS_TOKEN ||
+    process.env.HUGGINGFACEHUB_API_TOKEN;
 
   const shouldAttach = !url || url.includes("huggingface.co");
 
