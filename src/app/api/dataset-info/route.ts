@@ -26,6 +26,12 @@ export async function GET(request: NextRequest) {
   }
 
   const infoUrl = `${DATASET_URL}/${repoId}/resolve/${version}/meta/info.json`;
+  const headers = getHfAuthHeaders(infoUrl);
+  
+  // Debug logging - check if HF token is available
+  const hasToken = !!process.env.HF_TOKEN || !!process.env.HUGGINGFACE_TOKEN || 
+                   !!process.env.HF_ACCESS_TOKEN || !!process.env.HUGGINGFACEHUB_API_TOKEN;
+  console.log(`[dataset-info] Fetching: ${infoUrl}, hasToken: ${hasToken}, hasAuthHeader: ${'Authorization' in headers}`);
 
   try {
     const controller = new AbortController();
@@ -35,14 +41,18 @@ export async function GET(request: NextRequest) {
       method: "GET",
       cache: "no-store",
       signal: controller.signal,
-      headers: getHfAuthHeaders(infoUrl),
+      headers,
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
+      console.log(`[dataset-info] Failed with status ${response.status}, hasToken: ${hasToken}`);
       return NextResponse.json(
-        { error: `Failed to fetch dataset info: ${response.status} ${response.statusText}` },
+        { 
+          error: `Failed to fetch dataset info: ${response.status} ${response.statusText}`,
+          debug: { hasToken, url: infoUrl }
+        },
         { status: response.status }
       );
     }
