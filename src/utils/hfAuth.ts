@@ -1,5 +1,10 @@
 export function getHfAuthHeaders(url?: string): HeadersInit {
-  const env = (globalThis as any)?.process?.env ?? {};
+  // In server-side contexts, process.env is available directly
+  // In client-side contexts, it won't be available (which is expected)
+  const env = typeof process !== 'undefined' && process.env 
+    ? process.env 
+    : (globalThis as any)?.process?.env ?? {};
+  
   const token =
     env.HF_TOKEN ||
     env.HUGGINGFACE_TOKEN ||
