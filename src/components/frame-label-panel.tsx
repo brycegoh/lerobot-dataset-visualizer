@@ -31,19 +31,26 @@ type IssueTag = (typeof ISSUE_TAG_OPTIONS)[number];
 
 // Organize issue tags into logical categories for UI display
 const ISSUE_TAG_CATEGORIES = {
-  "Critical Issues": ["frozen_cam", "collision_between_arms", "left_arm_collision", "right_arm_collision",],
-  "Left Arm Issues and recovery": [
-    "left_arm_missed",
-    "left_arm_litter_stuck_gripper",
-    "left_arm_litter_dropped",
-    "left_arm_recovery",
-  ],
-  "Right Arm Issues and recovery": [
-    "right_arm_missed",
-    "right_arm_litter_stuck_gripper", 
-    "right_arm_litter_dropped",
-    "right_arm_recovery"
-  ],
+  "Critical Issues": {
+    issues: ["frozen_cam", "collision_between_arms", "left_arm_collision", "right_arm_collision"] as const,
+    recovery: [] as const
+  },
+  "Left Arm Issues and recovery": {
+    issues: [
+      "left_arm_missed",
+      "left_arm_litter_stuck_gripper",
+      "left_arm_litter_dropped"
+    ] as const,
+    recovery: ["left_arm_recovery"] as const
+  },
+  "Right Arm Issues and recovery": {
+    issues: [
+      "right_arm_missed",
+      "right_arm_litter_stuck_gripper", 
+      "right_arm_litter_dropped"
+    ] as const,
+    recovery: ["right_arm_recovery"] as const
+  }
 } as const;
 
 // Define which issue tags should appear in pairs
@@ -62,14 +69,39 @@ const PAIRED_ISSUE_TAGS = [
 function checkPairedIssueTags(allLabels: FrameLabel[]): string[] {
   const warnings: string[] = [];
   
+  // Group issue tags by their recovery tag (handle shared recoveries)
+  const recoveryGroups = new Map<IssueTag, IssueTag[]>();
+  
   PAIRED_ISSUE_TAGS.forEach(pair => {
-    // Count frames with each tag
-    const countA = allLabels.filter(l => l.issueTags.includes(pair.tagA)).length;
-    const countB = allLabels.filter(l => l.issueTags.includes(pair.tagB)).length;
+    if (!recoveryGroups.has(pair.tagB)) {
+      recoveryGroups.set(pair.tagB, []);
+    }
+    recoveryGroups.get(pair.tagB)!.push(pair.tagA);
+  });
+  
+  // Check each recovery group (e.g., all issues that pair with left_arm_recovery)
+  recoveryGroups.forEach((issueTags, recoveryTag) => {
+    // Count total frames with ANY of these issue tags
+    let totalIssueFrames = 0;
+    const issueCounts: Record<string, number> = {};
     
-    if (countA !== countB) {
+    issueTags.forEach(issueTag => {
+      const count = allLabels.filter(l => l.issueTags.includes(issueTag)).length;
+      if (count > 0) {
+        issueCounts[issueTag] = count;
+        totalIssueFrames += count;
+      }
+    });
+    
+    // Count total frames with this recovery tag
+    const recoveryCount = allLabels.filter(l => l.issueTags.includes(recoveryTag)).length;
+    
+    // Only warn if totals don't match
+    if (totalIssueFrames !== recoveryCount && totalIssueFrames > 0) {
+      // Build readable breakdown
+      const issueList = Object.keys(issueCounts).join('/');
       warnings.push(
-        `${pair.tagA} (${countA}×) should match ${pair.tagB} (${countB}×)`
+        `${issueList} (${totalIssueFrames}×) should match ${recoveryTag} (${recoveryCount}×)`
       );
     }
   });
@@ -155,6 +187,7 @@ export function FrameLabelPanel({
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const hasPhaseSelection = phaseTag !== null;
+  const hasAnyContent = phaseTag !== null || issueTags.length > 0 || notes.trim().length > 0;
 
   const startEditing = (targetIdx?: number) => {
     setIsPlaying(false);
@@ -365,13 +398,38 @@ export function FrameLabelPanel({
             <label className="text-sm font-medium text-slate-300">
               Issues:
             </label>
-            {Object.entries(ISSUE_TAG_CATEGORIES).map(([category, tags]) => (
+            {Object.entries(ISSUE_TAG_CATEGORIES).map(([category, { issues, recovery }]) => (
               <div key={category} className="flex flex-col gap-1.5">
                 <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   {category}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {tags.map((tag) => {
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Issue tags */}
+                  {issues.map((tag) => {
+                    const active = issueTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleIssueTag(tag)}
+                        className={`rounded-full border px-3 py-1.5 text-xs ${
+                          active
+                            ? "bg-slate-100 text-slate-900 border-slate-100"
+                            : "bg-slate-900 text-slate-100 border-slate-600"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                  
+                  {/* Separator (only if recovery tags exist) */}
+                  {recovery.length > 0 && (
+                    <div className="text-slate-500 text-lg font-light px-2">|</div>
+                  )}
+                  
+                  {/* Recovery tags */}
+                  {recovery.map((tag) => {
                     const active = issueTags.includes(tag);
                     return (
                       <button
@@ -428,7 +486,7 @@ export function FrameLabelPanel({
             <button
               type="button"
               onClick={handleSave}
-              disabled={isSaving || !hasPhaseSelection}
+              disabled={isSaving || !hasAnyContent}
               className="rounded-md bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
             >
               {isSaving ? "Saving…" : "Save frame label"}
