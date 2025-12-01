@@ -69,6 +69,13 @@ export async function getAdjacentEpisodesVideoInfo(
             const episode_chunk = Math.floor(0 / 1000);
             videosInfo = Object.entries(info.features)
               .filter(([, value]) => value.dtype === "video")
+              .sort(([a], [b]) => {
+                const getOrder = (key: string) => {
+                  const lower = key.toLowerCase();
+                  return lower.includes('left') ? 1 : lower.includes('top') ? 2 : lower.includes('right') ? 3 : 999;
+                };
+                return getOrder(a) - getOrder(b);
+              })
               .map(([key]) => {
                 const videoPath = formatStringWithVars(info.video_path, {
                   video_key: key,
@@ -129,6 +136,13 @@ async function getEpisodeDataV2(
       // Videos information
     const videosInfo = Object.entries(info.features)
       .filter(([, value]) => value.dtype === "video")
+      .sort(([a], [b]) => {
+        const getOrder = (key: string) => {
+          const lower = key.toLowerCase();
+          return lower.includes('left') ? 1 : lower.includes('top') ? 2 : lower.includes('right') ? 3 : 999;
+        };
+        return getOrder(a) - getOrder(b);
+      })
       .map(([key]) => {
       const videoPath = formatStringWithVars(info.video_path, {
         video_key: key,
@@ -870,9 +884,16 @@ function extractVideoInfoV3WithSegmentation(
   info: DatasetMetadata,
   episodeMetadata: any,
 ): any[] {
-  // Get video features from dataset info
+  // Get video features from dataset info and sort by left-top-right order
   const videoFeatures = Object.entries(info.features)
-    .filter(([, value]) => value.dtype === "video");
+    .filter(([, value]) => value.dtype === "video")
+    .sort(([a], [b]) => {
+      const getOrder = (key: string) => {
+        const lower = key.toLowerCase();
+        return lower.includes('left') ? 1 : lower.includes('top') ? 2 : lower.includes('right') ? 3 : 999;
+      };
+      return getOrder(a) - getOrder(b);
+    });
 
   const videosInfo = videoFeatures.map(([videoKey]) => {
     // Check if we have per-camera metadata in the episode row

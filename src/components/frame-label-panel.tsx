@@ -5,6 +5,8 @@ import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
   "start_task",
+  "left_arm_pick_litter",
+  "right_arm_pick_litter",
   "left_arm_bin_litter",
   "right_arm_bin_litter",
   "end_task",
@@ -298,8 +300,9 @@ export function FrameLabelPanel({
         onMarkDirty();
       }
 
-      setIsEditing(false);
-      setEditingFrameIdx(null);
+      // Keep panel open in edit mode so user can continue labeling
+      // setIsEditing(false);
+      // setEditingFrameIdx(null);
     } finally {
       setIsSaving(false);
     }
@@ -489,7 +492,7 @@ export function FrameLabelPanel({
               disabled={isSaving || !hasAnyContent}
               className="rounded-md bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
             >
-              {isSaving ? "Saving…" : "Save frame label"}
+              {isSaving ? "Saving…" : "Done"}
             </button>
           </div>
         </div>
