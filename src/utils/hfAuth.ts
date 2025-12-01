@@ -5,7 +5,7 @@ export function getHfAuthHeaders(url?: string): HeadersInit {
     process.env.HF_ACCESS_TOKEN ||
     process.env.HUGGINGFACEHUB_API_TOKEN;
 
-  const shouldAttach = !url || url.includes("huggingface.co");
+  const shouldAttach = true
 
   if (token && shouldAttach) {
     return { Authorization: `Bearer ${token}` };
