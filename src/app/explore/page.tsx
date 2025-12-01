@@ -1,8 +1,7 @@
 import React from "react";
 import ExploreGrid from "./explore-grid";
 import {
-  DatasetMetadata,
-  fetchJson,
+  fetchDatasetInfo,
   formatStringWithVars,
 } from "@/utils/parquetUtils";
 import { getDatasetVersion, buildVersionedUrl } from "@/utils/versionUtils";
@@ -59,8 +58,7 @@ export default async function ExplorePage({
             return null;
           }
           
-          const jsonUrl = buildVersionedUrl(repoId, version, "meta/info.json");
-          const info = await fetchJson<DatasetMetadata>(jsonUrl);
+          const info = await fetchDatasetInfo(repoId, version);
           const videoEntry = Object.entries(info.features).find(
             ([, value]) => value.dtype === "video",
           );

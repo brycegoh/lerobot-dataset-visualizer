@@ -35,6 +35,34 @@ export async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Fetches dataset metadata (info.json) via the internal API route.
+ * This keeps the HF token secure on the server side.
+ */
+export async function fetchDatasetInfo(repoId: string, version: string = "main"): Promise<DatasetMetadata> {
+  // Determine base URL for API calls
+  // In server context, we need absolute URL; in client, relative works
+  const baseUrl = typeof window === "undefined" 
+    ? process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://localhost:3000"
+    : "";
+  
+  const apiUrl = `${baseUrl}/api/dataset-info?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
+  
+  const response = await fetch(apiUrl, {
+    method: "GET",
+    cache: "no-store",
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to fetch dataset info: ${response.status}`);
+  }
+  
+  return response.json();
+}
+
 export function formatStringWithVars(
   format: string,
   vars: Record<string, any>,

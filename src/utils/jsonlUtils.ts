@@ -1,6 +1,3 @@
-import { getHfAuthHeaders } from "./hfAuth";
-import { buildVersionedUrl } from "./versionUtils";
-
 /**
  * Episode metadata structure from episodes.jsonl
  */
@@ -22,36 +19,39 @@ export interface SourceInfo {
 }
 
 /**
- * Fetches episodes.jsonl from HuggingFace
+ * Fetches episodes.jsonl via the internal API route.
+ * This keeps the HF token secure on the server side.
  */
 export async function fetchEpisodesJsonl(
   repoId: string,
   version: string
 ): Promise<string> {
-  const url = buildVersionedUrl(repoId, version, "meta/episodes.jsonl");
+  // Determine base URL for API calls
+  // In server context, we need absolute URL; in client, relative works
+  const baseUrl = typeof window === "undefined" 
+    ? process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://localhost:3000"
+    : "";
   
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+  const apiUrl = `${baseUrl}/api/episodes-jsonl?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
   
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
-      signal: controller.signal,
-      headers: getHfAuthHeaders(url),
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch episodes.jsonl: ${response.status}`);
+  const response = await fetch(apiUrl, {
+    method: "GET",
+    cache: "no-store",
+  });
+  
+  if (!response.ok) {
+    // Try to get error message from JSON response
+    const contentType = response.headers.get("content-type");
+    if (contentType?.includes("application/json")) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to fetch episodes.jsonl: ${response.status}`);
     }
-    
-    return await response.text();
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw error;
+    throw new Error(`Failed to fetch episodes.jsonl: ${response.status}`);
   }
+  
+  return await response.text();
 }
 
 /**

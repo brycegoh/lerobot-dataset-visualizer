@@ -1,6 +1,6 @@
 import {
   DatasetMetadata,
-  fetchJson,
+  fetchDatasetInfo,
   fetchParquetFile,
   formatStringWithVars,
   readParquetColumn,
@@ -21,8 +21,7 @@ export async function getEpisodeData(
   try {
     // Check for compatible dataset version (v3.0, v2.1, or v2.0)
     const version = await getDatasetVersion(repoId);
-    const jsonUrl = buildVersionedUrl(repoId, version, "meta/info.json");
-    const info = await fetchJson<DatasetMetadata>(jsonUrl);
+    const info = await fetchDatasetInfo(repoId, version);
 
     // Handle different versions
     if (version === "v3.0") {
@@ -46,8 +45,7 @@ export async function getAdjacentEpisodesVideoInfo(
   const repoId = `${org}/${dataset}`;
   try {
     const version = await getDatasetVersion(repoId);
-    const jsonUrl = buildVersionedUrl(repoId, version, "meta/info.json");
-    const info = await fetchJson<DatasetMetadata>(jsonUrl);
+    const info = await fetchDatasetInfo(repoId, version);
     
     const totalEpisodes = info.total_episodes;
     const adjacentVideos: Array<{episodeId: number; videosInfo: any[]}> = [];

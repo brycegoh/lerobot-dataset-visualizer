@@ -3,7 +3,6 @@
  */
 
 const DATASET_URL = process.env.DATASET_URL || "https://huggingface.co/datasets";
-import { getHfAuthHeaders } from "./hfAuth";
 
 /**
  * Dataset information structure from info.json
@@ -25,29 +24,38 @@ interface DatasetInfo {
 }
 
 /**
+ * Fetches dataset info via the internal API route (keeps HF token server-side)
+ */
+export async function fetchDatasetInfoFromApi(repoId: string, version: string = "main"): Promise<DatasetInfo> {
+  // Determine base URL for API calls
+  // In server context, we need absolute URL; in client, relative works
+  const baseUrl = typeof window === "undefined" 
+    ? process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : "http://localhost:3000"
+    : "";
+  
+  const apiUrl = `${baseUrl}/api/dataset-info?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
+  
+  const response = await fetch(apiUrl, {
+    method: "GET",
+    cache: "no-store",
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to fetch dataset info: ${response.status}`);
+  }
+  
+  return response.json();
+}
+
+/**
  * Fetches dataset information from the main revision
  */
 export async function getDatasetInfo(repoId: string): Promise<DatasetInfo> {
   try {
-    const testUrl = `${DATASET_URL}/${repoId}/resolve/main/meta/info.json`;
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    const response = await fetch(testUrl, { 
-      method: "GET",
-      cache: "no-store",
-      signal: controller.signal,
-      headers: getHfAuthHeaders(testUrl)
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch dataset info: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const data = await fetchDatasetInfoFromApi(repoId, "main");
     
     // Check if it has the required structure
     if (!data.features) {
