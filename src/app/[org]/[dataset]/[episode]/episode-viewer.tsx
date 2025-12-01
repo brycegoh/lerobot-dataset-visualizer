@@ -261,7 +261,7 @@ function EpisodeViewerInner({
         .eq("org_id", effectiveOrg)
         .eq("dataset_id", effectiveDataset)
         .eq("episode_id", episodeIdStr)
-        .eq("labeller_id", labellerId)
+        // .eq("labeller_id", labellerId)
         .maybeSingle();
 
       if (epError && epError.code !== "PGRST116") {
@@ -290,7 +290,7 @@ function EpisodeViewerInner({
         .eq("org_id", effectiveOrg)
         .eq("dataset_id", effectiveDataset)
         .eq("episode_id", episodeIdStr)
-        .eq("labeller_id", labellerId)
+        // .eq("labeller_id", labellerId)
         .order("frame_idx", { ascending: true });
 
       if (frError) {
@@ -347,7 +347,7 @@ function EpisodeViewerInner({
       .eq("org_id", effectiveOrg)
       .eq("dataset_id", effectiveDataset)
       .eq("episode_id", episodeIdStr)
-      .eq("labeller_id", labellerId);
+      // .eq("labeller_id", labellerId);
 
     if (frameErr) {
       console.error("Error clearing frame labels", frameErr);
@@ -359,7 +359,7 @@ function EpisodeViewerInner({
       .eq("org_id", effectiveOrg)
       .eq("dataset_id", effectiveDataset)
       .eq("episode_id", episodeIdStr)
-      .eq("labeller_id", labellerId);
+      // .eq("labeller_id", labellerId);
 
     if (epErr) {
       console.error("Error clearing episode label", epErr);
