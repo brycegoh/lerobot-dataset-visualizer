@@ -35,31 +35,46 @@ export async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+const DATASET_URL = process.env.DATASET_URL || "https://huggingface.co/datasets";
+
 /**
- * Fetches dataset metadata (info.json) via the internal API route.
- * This keeps the HF token secure on the server side.
+ * Fetches dataset metadata (info.json).
+ * - Server-side: calls HuggingFace directly with auth headers
+ * - Client-side: uses the API route to keep token secure
  */
 export async function fetchDatasetInfo(repoId: string, version: string = "main"): Promise<DatasetMetadata> {
-  // Determine base URL for API calls
-  // In server context, we need absolute URL; in client, relative works
-  const baseUrl = typeof window === "undefined" 
-    ? (process.env.NEXT_PUBLIC_BASE_URL || 
-       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"))
-    : "";
+  const isServer = typeof window === "undefined";
   
-  const apiUrl = `${baseUrl}/api/dataset-info?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
-  
-  const response = await fetch(apiUrl, {
-    method: "GET",
-    cache: "no-store",
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `Failed to fetch dataset info: ${response.status}`);
+  if (isServer) {
+    // Server-side: call HuggingFace directly (has access to env vars)
+    const infoUrl = `${DATASET_URL}/${repoId}/resolve/${version}/meta/info.json`;
+    const response = await fetch(infoUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: getHfAuthHeaders(infoUrl),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch dataset info: ${response.status}`);
+    }
+    
+    return response.json();
+  } else {
+    // Client-side: use API route to keep token secure
+    const apiUrl = `/api/dataset-info?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
+    
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      cache: "no-store",
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to fetch dataset info: ${response.status}`);
+    }
+    
+    return response.json();
   }
-  
-  return response.json();
 }
 
 export function formatStringWithVars(

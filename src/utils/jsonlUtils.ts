@@ -1,3 +1,7 @@
+import { getHfAuthHeaders } from "./hfAuth";
+
+const DATASET_URL = process.env.DATASET_URL || "https://huggingface.co/datasets";
+
 /**
  * Episode metadata structure from episodes.jsonl
  */
@@ -19,38 +23,51 @@ export interface SourceInfo {
 }
 
 /**
- * Fetches episodes.jsonl via the internal API route.
- * This keeps the HF token secure on the server side.
+ * Fetches episodes.jsonl.
+ * - Server-side: calls HuggingFace directly with auth headers
+ * - Client-side: uses the API route to keep token secure
  */
 export async function fetchEpisodesJsonl(
   repoId: string,
   version: string
 ): Promise<string> {
-  // Determine base URL for API calls
-  // In server context, we need absolute URL; in client, relative works
-  const baseUrl = typeof window === "undefined" 
-    ? (process.env.NEXT_PUBLIC_BASE_URL || 
-       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000"))
-    : "";
+  const isServer = typeof window === "undefined";
   
-  const apiUrl = `${baseUrl}/api/episodes-jsonl?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
-  
-  const response = await fetch(apiUrl, {
-    method: "GET",
-    cache: "no-store",
-  });
-  
-  if (!response.ok) {
-    // Try to get error message from JSON response
-    const contentType = response.headers.get("content-type");
-    if (contentType?.includes("application/json")) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to fetch episodes.jsonl: ${response.status}`);
+  if (isServer) {
+    // Server-side: call HuggingFace directly (has access to env vars)
+    const jsonlUrl = `${DATASET_URL}/${repoId}/resolve/${version}/meta/episodes.jsonl`;
+    const response = await fetch(jsonlUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: getHfAuthHeaders(jsonlUrl),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch episodes.jsonl: ${response.status}`);
     }
-    throw new Error(`Failed to fetch episodes.jsonl: ${response.status}`);
+    
+    return await response.text();
+  } else {
+    // Client-side: use API route to keep token secure
+    const apiUrl = `/api/episodes-jsonl?repoId=${encodeURIComponent(repoId)}&version=${encodeURIComponent(version)}`;
+    
+    const response = await fetch(apiUrl, {
+      method: "GET",
+      cache: "no-store",
+    });
+    
+    if (!response.ok) {
+      // Try to get error message from JSON response
+      const contentType = response.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch episodes.jsonl: ${response.status}`);
+      }
+      throw new Error(`Failed to fetch episodes.jsonl: ${response.status}`);
+    }
+    
+    return await response.text();
   }
-  
-  return await response.text();
 }
 
 /**
