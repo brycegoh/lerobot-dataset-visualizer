@@ -16,6 +16,14 @@ import {
 } from "@/components/episode-label-panel";
 import type { FrameLabel } from "@/components/frame-label-panel";
 import { supabase } from "@/utils/supabaseClient";
+import {
+  fetchEpisodesJsonl,
+  parseEpisodesJsonl,
+  extractSourceInfo,
+  type SourceInfo,
+  type EpisodeMetadata,
+} from "@/utils/jsonlUtils";
+import { getDatasetVersion } from "@/utils/versionUtils";
 
 export default function EpisodeViewer({
   data,
@@ -105,6 +113,52 @@ function EpisodeViewerInner({
   const [isSaving, setIsSaving] = useState(false);
   const [deletedFrameIndices, setDeletedFrameIndices] = useState<Set<number>>(new Set());
   const [pairingWarnings, setPairingWarnings] = useState<string[]>([]);
+
+  // Source tracking: cache metadata for the entire dataset
+  const [episodesMetadataMap, setEpisodesMetadataMap] = useState<Map<number, EpisodeMetadata> | null>(null);
+  const [sourceInfo, setSourceInfo] = useState<SourceInfo | null>(null);
+  const [isLoadingSourceInfo, setIsLoadingSourceInfo] = useState(true);
+
+  // Fetch and cache episodes.jsonl metadata for the dataset (once per dataset)
+  useEffect(() => {
+    const loadSourceMetadata = async () => {
+      setIsLoadingSourceInfo(true);
+      
+      try {
+        const repoId = `${effectiveOrg}/${effectiveDataset}`;
+        const version = await getDatasetVersion(repoId);
+        const jsonlText = await fetchEpisodesJsonl(repoId, version);
+        const metadataMap = parseEpisodesJsonl(jsonlText);
+        
+        setEpisodesMetadataMap(metadataMap);
+        
+        // Extract source info for current episode
+        const sourceData = extractSourceInfo(episodeId, metadataMap);
+        setSourceInfo(sourceData);
+      } catch (error) {
+        // Silently fallback - episodes.jsonl might not exist (regular dataset)
+        setEpisodesMetadataMap(null);
+        setSourceInfo(null);
+      } finally {
+        setIsLoadingSourceInfo(false);
+      }
+    };
+
+    if (effectiveOrg && effectiveDataset && episodeId !== undefined) {
+      loadSourceMetadata();
+    }
+  }, [effectiveOrg, effectiveDataset]); // Re-fetch only when dataset changes
+
+  // Update sourceInfo when episode changes (use cached metadataMap)
+  useEffect(() => {
+    if (!episodesMetadataMap || episodeId === undefined) {
+      setSourceInfo(null);
+      return;
+    }
+    
+    const sourceData = extractSourceInfo(episodeId, episodesMetadataMap);
+    setSourceInfo(sourceData);
+  }, [episodeId, episodesMetadataMap]);
 
   // For now, mark videos/charts as ready so you can work on UI
   const [videosReady, setVideosReady] = useState(true);
@@ -250,16 +304,21 @@ function EpisodeViewerInner({
   // Load episode + frame labels from Supabase whenever org/dataset/episode changes
   useEffect(() => {
     if (!labellerId) return; // Wait for labeller ID
+    if (isLoadingSourceInfo) return; // Wait for source info to load
     
     const loadLabels = async () => {
-      const episodeIdStr = String(episodeId);
+      // Use source IDs if available, otherwise use current IDs
+      const queryOrg = sourceInfo?.org ?? effectiveOrg;
+      const queryDataset = sourceInfo?.dataset ?? effectiveDataset;
+      const queryEpisode = sourceInfo?.episode ?? episodeId;
+      const episodeIdStr = String(queryEpisode);
 
       // Episode-level label
       const { data: epData, error: epError } = await supabase
         .from("episode_labels")
         .select("labeller_id,quality_tag,key_notes,remarks,updated_at")
-        .eq("org_id", effectiveOrg)
-        .eq("dataset_id", effectiveDataset)
+        .eq("org_id", queryOrg)
+        .eq("dataset_id", queryDataset)
         .eq("episode_id", episodeIdStr)
         // .eq("labeller_id", labellerId)
         .maybeSingle();
@@ -270,8 +329,8 @@ function EpisodeViewerInner({
 
       if (epData) {
         setEpisodeLabel({
-          orgId: effectiveOrg,
-          datasetId: effectiveDataset,
+          orgId: queryOrg,
+          datasetId: queryDataset,
           episodeId: episodeIdStr,
           labellerId: epData.labeller_id,
           qualityTag: epData.quality_tag,
@@ -287,8 +346,8 @@ function EpisodeViewerInner({
       const { data: frData, error: frError } = await supabase
         .from("frame_labels")
         .select("frame_idx,labeller_id,phase_tag,issue_tags,notes,updated_at")
-        .eq("org_id", effectiveOrg)
-        .eq("dataset_id", effectiveDataset)
+        .eq("org_id", queryOrg)
+        .eq("dataset_id", queryDataset)
         .eq("episode_id", episodeIdStr)
         // .eq("labeller_id", labellerId)
         .order("frame_idx", { ascending: true });
@@ -320,7 +379,7 @@ function EpisodeViewerInner({
     if (effectiveOrg && effectiveDataset && episodeId !== undefined) {
       loadLabels();
     }
-  }, [effectiveOrg, effectiveDataset, episodeId, labellerId]);
+  }, [effectiveOrg, effectiveDataset, episodeId, labellerId, sourceInfo, isLoadingSourceInfo]);
 
   // Pagination functions
   const nextPage = () => {
@@ -339,13 +398,17 @@ function EpisodeViewerInner({
   const handleClearAllLabels = async () => {
     if (!labellerId) return;
     
-    const episodeIdStr = String(episodeId);
+    // Use source IDs if available, otherwise use current IDs
+    const queryOrg = sourceInfo?.org ?? effectiveOrg;
+    const queryDataset = sourceInfo?.dataset ?? effectiveDataset;
+    const queryEpisode = sourceInfo?.episode ?? episodeId;
+    const episodeIdStr = String(queryEpisode);
 
     const { error: frameErr } = await supabase
       .from("frame_labels")
       .delete()
-      .eq("org_id", effectiveOrg)
-      .eq("dataset_id", effectiveDataset)
+      .eq("org_id", queryOrg)
+      .eq("dataset_id", queryDataset)
       .eq("episode_id", episodeIdStr)
       // .eq("labeller_id", labellerId);
 
@@ -356,8 +419,8 @@ function EpisodeViewerInner({
     const { error: epErr } = await supabase
       .from("episode_labels")
       .delete()
-      .eq("org_id", effectiveOrg)
-      .eq("dataset_id", effectiveDataset)
+      .eq("org_id", queryOrg)
+      .eq("dataset_id", queryDataset)
       .eq("episode_id", episodeIdStr)
       // .eq("labeller_id", labellerId);
 
@@ -381,20 +444,29 @@ function EpisodeViewerInner({
   const handleSaveAllLabels = async () => {
     if (!labellerId) return;
 
+    // REQUIRED: Check if quality tag is selected
+    if (!episodeLabel || !episodeLabel.qualityTag) {
+      alert("Please select a quality tag before saving.\nQuality rating is required.");
+      return;
+    }
+
     // Show paired tag warning if exists (confirm to proceed)
     if (pairingWarnings.length > 0) {
       const confirmed = window.confirm(
         "Warning: Some paired issue tags are unbalanced.\nPlease review the frame labeller panel.\n\nSave anyway?"
       );
       if (!confirmed) {
-        setIsSaving(false);
         return;
       }
     }
 
     setIsSaving(true);
     try {
-      const episodeIdStr = String(episodeId);
+      // Use source IDs if available, otherwise use current IDs
+      const queryOrg = sourceInfo?.org ?? effectiveOrg;
+      const queryDataset = sourceInfo?.dataset ?? effectiveDataset;
+      const queryEpisode = sourceInfo?.episode ?? episodeId;
+      const episodeIdStr = String(queryEpisode);
 
       // 1. Upsert labeller (ensure it exists)
       await supabase.from("labellers").upsert(
@@ -407,8 +479,8 @@ function EpisodeViewerInner({
         const { error: deleteError } = await supabase
           .from("frame_labels")
           .delete()
-          .eq("org_id", effectiveOrg)
-          .eq("dataset_id", effectiveDataset)
+          .eq("org_id", queryOrg)
+          .eq("dataset_id", queryDataset)
           .eq("episode_id", episodeIdStr)
           .eq("labeller_id", labellerId)
           .in("frame_idx", Array.from(deletedFrameIndices));
@@ -419,8 +491,8 @@ function EpisodeViewerInner({
       // 3. Upsert episode label (if exists)
       if (episodeLabel) {
         const episodeData = {
-          org_id: effectiveOrg,
-          dataset_id: effectiveDataset,
+          org_id: queryOrg,
+          dataset_id: queryDataset,
           episode_id: episodeIdStr,
           labeller_id: labellerId,
           quality_tag: episodeLabel.qualityTag,
@@ -439,8 +511,8 @@ function EpisodeViewerInner({
       // 4. Batch upsert ALL frame labels
       if (frameLabels.length > 0) {
         const frameRows = frameLabels.map(label => ({
-          org_id: effectiveOrg,
-          dataset_id: effectiveDataset,
+          org_id: queryOrg,
+          dataset_id: queryDataset,
           episode_id: episodeIdStr,
           frame_idx: label.frameIdx,
           labeller_id: label.labellerId,
@@ -558,6 +630,7 @@ function EpisodeViewerInner({
           onMarkDirty={() => setHasUnsavedChanges(true)}
           onChange={(label) => setEpisodeLabel(label)}
           onClearAll={handleClearAllLabels}
+          sourceInfo={sourceInfo}
         />
 
         {/* Language Instruction */}

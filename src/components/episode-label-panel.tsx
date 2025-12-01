@@ -44,6 +44,7 @@ type EpisodeLabelPanelProps = {
   onMarkDirty: () => void;
   onChange: (label: EpisodeLabel) => void;
   onClearAll?: () => void | Promise<void>;
+  sourceInfo?: { org: string; dataset: string; episode: number } | null;
 };
 
 export function EpisodeLabelPanel({
@@ -58,6 +59,7 @@ export function EpisodeLabelPanel({
   onMarkDirty,
   onChange,
   onClearAll,
+  sourceInfo,
 }: EpisodeLabelPanelProps) {
   // allow "no selection" until user clicks a chip
   const [qualityTag, setQualityTag] = useState<QualityTag | null>(null);
@@ -130,7 +132,13 @@ export function EpisodeLabelPanel({
             Episode Labels
           </div>
           <div className="text-[11px] text-slate-500">
-            episode {episodeId}
+            {sourceInfo ? (
+              <>
+                episode {episodeId} (source: {sourceInfo.org}/{sourceInfo.dataset} ep {sourceInfo.episode})
+              </>
+            ) : (
+              <>episode {episodeId}</>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
