@@ -5,8 +5,8 @@ import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
   "start_task",
-  "during_task",
-  "drop_in_bin",
+  "left_arm_bin_litter",
+  "right_arm_bin_litter",
   "end_task",
 ] as const;
 
@@ -28,6 +28,23 @@ const ISSUE_TAG_OPTIONS = [
 ] as const;
 
 type IssueTag = (typeof ISSUE_TAG_OPTIONS)[number];
+
+// Organize issue tags into logical categories for UI display
+const ISSUE_TAG_CATEGORIES = {
+  "Critical Issues": ["frozen_cam", "collision_between_arms", "left_arm_collision", "right_arm_collision",],
+  "Left Arm Issues and recovery": [
+    "left_arm_missed",
+    "left_arm_litter_stuck_gripper",
+    "left_arm_litter_dropped",
+    "left_arm_recovery",
+  ],
+  "Right Arm Issues and recovery": [
+    "right_arm_missed",
+    "right_arm_litter_stuck_gripper", 
+    "right_arm_litter_dropped",
+    "right_arm_recovery"
+  ],
+} as const;
 
 // Define which issue tags should appear in pairs
 const PAIRED_ISSUE_TAGS = [
@@ -212,8 +229,8 @@ export function FrameLabelPanel({
   };
 
   const handleSave = async () => {
-    if (!hasPhaseSelection) {
-      // nothing selected -> don't save a label
+    // Only skip save if nothing at all is entered
+    if (!phaseTag && issueTags.length === 0 && !notes.trim()) {
       setIsEditing(false);
       setEditingFrameIdx(null);
       return;
@@ -318,7 +335,7 @@ export function FrameLabelPanel({
           {/* Phase */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-slate-300">
-              Phase (required):
+              Phase:
             </label>
             <div className="flex flex-wrap gap-2">
               {PHASE_TAG_OPTIONS.map((tag) => {
@@ -344,29 +361,36 @@ export function FrameLabelPanel({
           </div>
 
           {/* Issues */}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <label className="text-sm font-medium text-slate-300">
               Issues:
             </label>
-            <div className="flex flex-wrap gap-2">
-              {ISSUE_TAG_OPTIONS.map((tag) => {
-                const active = issueTags.includes(tag);
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => toggleIssueTag(tag)}
-                    className={`rounded-full border px-3 py-1.5 text-xs ${
-                      active
-                        ? "bg-slate-100 text-slate-900 border-slate-100"
-                        : "bg-slate-900 text-slate-100 border-slate-600"
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
-            </div>
+            {Object.entries(ISSUE_TAG_CATEGORIES).map(([category, tags]) => (
+              <div key={category} className="flex flex-col gap-1.5">
+                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  {category}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => {
+                    const active = issueTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleIssueTag(tag)}
+                        className={`rounded-full border px-3 py-1.5 text-xs ${
+                          active
+                            ? "bg-slate-100 text-slate-900 border-slate-100"
+                            : "bg-slate-900 text-slate-100 border-slate-600"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Notes */}
