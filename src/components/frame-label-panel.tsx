@@ -5,8 +5,7 @@ import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
   "start_task",
-  "pick_litter",
-  "move_to_bin",
+  "during_task",
   "drop_in_bin",
   "end_task",
 ] as const;
@@ -15,23 +14,30 @@ type PhaseTag = (typeof PHASE_TAG_OPTIONS)[number];
 
 const ISSUE_TAG_OPTIONS = [
   "frozen_cam",
-  "failed_pick",
+  "left_arm_missed",
+  "right_arm_missed",
   "collision_between_arms",
-  "collision_with_sink",
-  "litter_stuck_gripper",
-  "litter_dropped",
-  "shift_during_rest",
+  "left_arm_collision",
+  "right_arm_collision",
+  "left_arm_litter_stuck_gripper",
+  "right_arm_litter_stuck_gripper",
+  "left_arm_litter_dropped",
+  "right_arm_litter_dropped",
+  "left_arm_recovery",
+  "right_arm_recovery",
 ] as const;
 
 type IssueTag = (typeof ISSUE_TAG_OPTIONS)[number];
 
 // Define which issue tags should appear in pairs
 const PAIRED_ISSUE_TAGS = [
-  { 
-    tagA: "failed_pick", 
-    tagB: "litter_dropped",
-    description: "Failed picks should have corresponding drops"
-  },
+  { tagA: "left_arm_missed", tagB: "left_arm_recovery", description: "left arm"},
+  { tagA: "right_arm_missed", tagB: "right_arm_recovery", description: "right arm"},
+  { tagA: "left_arm_litter_stuck_gripper", tagB: "left_arm_recovery", description: "left arm"},
+  { tagA: "right_arm_litter_stuck_gripper", tagB: "right_arm_recovery", description: "right arm"},
+  { tagA: "left_arm_litter_dropped", tagB: "left_arm_recovery", description: "left arm"},
+  { tagA: "right_arm_litter_dropped", tagB: "right_arm_recovery", description: "right arm"},
+
   // Easy to add more pairs as needed
 ] as const;
 
