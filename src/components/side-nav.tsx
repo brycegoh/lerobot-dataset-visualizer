@@ -11,6 +11,7 @@ interface SidebarProps {
   currentPage: number;
   prevPage: () => void;
   nextPage: () => void;
+  hasUnsavedChanges?: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -21,11 +22,24 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentPage,
   prevPage,
   nextPage,
+  hasUnsavedChanges = false,
 }) => {
   const [sidebarVisible, setSidebarVisible] = React.useState(true);
   const toggleSidebar = () => setSidebarVisible((prev) => !prev);
 
   const sidebarRef = React.useRef<HTMLDivElement>(null);
+
+  // Handler for episode link clicks with unsaved changes check
+  const handleEpisodeClick = (e: React.MouseEvent<HTMLAnchorElement>, targetEpisode: any) => {
+    if (hasUnsavedChanges && targetEpisode !== episodeId) {
+      const confirmed = window.confirm(
+        "You have unsaved changes.\nLeave without saving?"
+      );
+      if (!confirmed) {
+        e.preventDefault();
+      }
+    }
+  };
 
   React.useEffect(() => {
     if (!sidebarVisible) return;
@@ -68,6 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <Link
                   href={`./episode_${episode}`}
                   className={`underline ${episode === episodeId ? "-ml-1 font-bold" : ""}`}
+                  onClick={(e) => handleEpisodeClick(e, episode)}
                 >
                   Episode {episode}
                 </Link>

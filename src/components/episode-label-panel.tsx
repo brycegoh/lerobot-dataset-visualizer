@@ -38,7 +38,11 @@ type EpisodeLabelPanelProps = {
   episodeId: string;
   labellerId: string;
   initialLabel?: EpisodeLabel | null;
-  onSave?: (label: EpisodeLabel) => void | Promise<void>;
+  hasUnsavedChanges: boolean;
+  isSaving: boolean;
+  onSaveAll: () => Promise<void>;
+  onMarkDirty: () => void;
+  onChange: (label: EpisodeLabel) => void;
   onClearAll?: () => void | Promise<void>;
 };
 
@@ -48,14 +52,17 @@ export function EpisodeLabelPanel({
   episodeId,
   labellerId,
   initialLabel,
-  onSave,
+  hasUnsavedChanges,
+  isSaving,
+  onSaveAll,
+  onMarkDirty,
+  onChange,
   onClearAll,
 }: EpisodeLabelPanelProps) {
   // allow "no selection" until user clicks a chip
   const [qualityTag, setQualityTag] = useState<QualityTag | null>(null);
   const [keyNotes, setKeyNotes] = useState<KeyNoteTag[]>([]);
   const [remarks, setRemarks] = useState<string>("");
-  const [isSaving, setIsSaving] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
   const hasQualitySelection = qualityTag !== null;
@@ -74,40 +81,34 @@ export function EpisodeLabelPanel({
   }, [initialLabel]);
 
   const toggleKeyNote = (tag: KeyNoteTag) => {
-    setKeyNotes((prev) =>
-      prev.includes(tag)
-        ? prev.filter((t) => t !== tag)
-        : [...prev, tag],
-    );
-  };
-
-  const handleSave = async () => {
-    if (!hasQualitySelection) return; // require explicit quality
-
-    const label: EpisodeLabel = {
-      orgId,
-      datasetId,
-      episodeId,
-      labellerId,
-      qualityTag: qualityTag!, // we know it's not null here
-      keyNotes,
-      remarks,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setIsSaving(true);
-    try {
-      if (onSave) {
-        await onSave(label);
-      } else {
-        console.log("Episode label saved:", label);
-      }
-    } finally {
-      setIsSaving(false);
+    const newKeyNotes = keyNotes.includes(tag)
+      ? keyNotes.filter((t) => t !== tag)
+      : [...keyNotes, tag];
+    
+    setKeyNotes(newKeyNotes);
+    onMarkDirty();
+    
+    // Update parent with new label
+    if (qualityTag) {
+      onChange({
+        orgId,
+        datasetId,
+        episodeId,
+        labellerId,
+        qualityTag,
+        keyNotes: newKeyNotes,
+        remarks,
+        updatedAt: new Date().toISOString(),
+      });
     }
   };
 
   const handleClearAll = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to delete all labels for this episode?\nThis cannot be undone."
+    );
+    if (!confirmed) return;
+
     if (!onClearAll) return;
     setIsClearing(true);
     try {
@@ -156,9 +157,25 @@ export function EpisodeLabelPanel({
               <button
                 key={tag}
                 type="button"
-                onClick={() =>
-                  setQualityTag((prev) => (prev === tag ? null : tag))
-                }
+                onClick={() => {
+                  const newQualityTag = qualityTag === tag ? null : tag;
+                  setQualityTag(newQualityTag);
+                  onMarkDirty();
+                  
+                  // Update parent with new label
+                  if (newQualityTag) {
+                    onChange({
+                      orgId,
+                      datasetId,
+                      episodeId,
+                      labellerId,
+                      qualityTag: newQualityTag,
+                      keyNotes,
+                      remarks,
+                      updatedAt: new Date().toISOString(),
+                    });
+                  }
+                }}
                 className={`rounded-full border px-3 py-1.5 text-xs ${
                   active
                     ? "bg-emerald-400 text-slate-900 border-emerald-300"
@@ -209,19 +226,37 @@ export function EpisodeLabelPanel({
           className="w-full resize-y rounded-md border border-slate-600 bg-slate-950 p-2 text-xs"
           placeholder="Optional episode-specific notes…"
           value={remarks}
-          onChange={(e) => setRemarks(e.target.value)}
+          onChange={(e) => {
+            const newRemarks = e.target.value;
+            setRemarks(newRemarks);
+            onMarkDirty();
+            
+            // Update parent with new label
+            if (qualityTag) {
+              onChange({
+                orgId,
+                datasetId,
+                episodeId,
+                labellerId,
+                qualityTag,
+                keyNotes,
+                remarks: newRemarks,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }}
         />
       </div>
 
-      {/* Save button */}
+      {/* Save All button */}
       <div className="mt-3 flex justify-end">
         <button
           type="button"
-          onClick={handleSave}
-          disabled={isSaving || !hasQualitySelection}
+          onClick={onSaveAll}
+          disabled={!hasUnsavedChanges || isSaving}
           className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:opacity-60"
         >
-          {isSaving ? "Saving…" : "Save"}
+          {isSaving ? "Saving..." : "Save All Labels"}
         </button>
       </div>
     </section>

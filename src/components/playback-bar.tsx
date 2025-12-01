@@ -18,7 +18,9 @@ import { FrameLabelPanel, FrameLabel } from "@/components/frame-label-panel";
 type PlaybackBarProps = {
   labellerId: string;
   onFrameLabelSave?: (label: FrameLabel) => void | Promise<void>;
-  onFrameLabelDelete?: (frameIdx: number) => void | Promise<void>; // NEW
+  onFrameLabelDelete?: (frameIdx: number) => void | Promise<void>;
+  onMarkDirty?: () => void;
+  onPairingWarningsChange?: (warnings: string[]) => void;
   frameLabels?: FrameLabel[];
 };
 
@@ -28,6 +30,8 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
   labellerId,
   onFrameLabelSave,
   onFrameLabelDelete,
+  onMarkDirty,
+  onPairingWarningsChange,
   frameLabels = [],
 }) => {
   const { duration, isPlaying, setIsPlaying, currentTime, setCurrentTime } =
@@ -82,6 +86,8 @@ const PlaybackBar: React.FC<PlaybackBarProps> = ({
         labellerId={labellerId}
         onSave={onFrameLabelSave}
         onDelete={onFrameLabelDelete}
+        onMarkDirty={onMarkDirty}
+        onPairingWarningsChange={onPairingWarningsChange}
         initialLabels={frameLabels}
         editFrameIdx={editFrameIdx}
         onEditFrameConsumed={() => setEditFrameIdx(null)}

@@ -74,6 +74,8 @@ type FrameLabelPanelProps = {
   initialLabels?: FrameLabel[];
   onSave?: (label: FrameLabel) => void | Promise<void>;
   onDelete?: (frameIdx: number) => void | Promise<void>;
+  onMarkDirty?: () => void;
+  onPairingWarningsChange?: (warnings: string[]) => void;
   editFrameIdx?: number | null;
   onEditFrameConsumed?: () => void;
 };
@@ -83,6 +85,8 @@ export function FrameLabelPanel({
   initialLabels = [],
   onSave,
   onDelete,
+  onMarkDirty,
+  onPairingWarningsChange,
   editFrameIdx,
   onEditFrameConsumed,
 }: FrameLabelPanelProps) {
@@ -96,6 +100,13 @@ export function FrameLabelPanel({
     () => checkPairedIssueTags(initialLabels),
     [initialLabels]
   );
+
+  // Lift pairing warnings to parent
+  useEffect(() => {
+    if (onPairingWarningsChange) {
+      onPairingWarningsChange(pairingWarnings);
+    }
+  }, [pairingWarnings, onPairingWarningsChange]);
 
   // Map frameIdx -> label, seeded from initialLabels
   const [labelsByFrame, setLabelsByFrame] = useState<Record<number, FrameLabel>>(
@@ -232,6 +243,11 @@ export function FrameLabelPanel({
         console.log("Frame label saved:", label);
       }
 
+      // Mark dirty after local state update
+      if (onMarkDirty) {
+        onMarkDirty();
+      }
+
       setIsEditing(false);
       setEditingFrameIdx(null);
     } finally {
@@ -254,6 +270,11 @@ export function FrameLabelPanel({
       await onDelete(idx);
     } else {
       console.log("Frame label deleted:", idx);
+    }
+
+    // Mark dirty after local state update
+    if (onMarkDirty) {
+      onMarkDirty();
     }
 
     setIsEditing(false);

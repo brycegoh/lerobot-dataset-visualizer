@@ -100,6 +100,12 @@ function EpisodeViewerInner({
   const [episodeLabel, setEpisodeLabel] = useState<EpisodeLabel | null>(null);
   const [frameLabels, setFrameLabels] = useState<FrameLabel[]>([]);
 
+  // Batch save state management
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletedFrameIndices, setDeletedFrameIndices] = useState<Set<number>>(new Set());
+  const [pairingWarnings, setPairingWarnings] = useState<string[]>([]);
+
   // For now, mark videos/charts as ready so you can work on UI
   const [videosReady, setVideosReady] = useState(true);
   const [chartsReady, setChartsReady] = useState(true);
@@ -185,6 +191,13 @@ function EpisodeViewerInner({
           nextEpisodeId >= lowestEpisodeId &&
           nextEpisodeId <= highestEpisodeId
         ) {
+          // Check for unsaved changes before navigating
+          if (hasUnsavedChanges) {
+            const confirmed = window.confirm(
+              "You have unsaved changes.\nLeave without saving?"
+            );
+            if (!confirmed) return;
+          }
           router.push(`./episode_${nextEpisodeId}`);
         }
       }
@@ -194,7 +207,20 @@ function EpisodeViewerInner({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [episodes, episodeId, pageSize, router, setIsPlaying]);
+  }, [episodes, episodeId, pageSize, router, setIsPlaying, hasUnsavedChanges]);
+
+  // Browser navigation guard (close tab, refresh, external links)
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ""; // Modern browsers show generic message
+    };
+    
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasUnsavedChanges]);
 
   // Update URL ?t= param when paused, preserving fractional seconds
   const lastUrlTimeRef = useRef<number>(-1);
@@ -284,6 +310,11 @@ function EpisodeViewerInner({
       } else {
         setFrameLabels([]);
       }
+
+      // Reset dirty flag and deleted indices after fresh load
+      setHasUnsavedChanges(false);
+      setDeletedFrameIndices(new Set());
+      setPairingWarnings([]);
     };
 
     if (effectiveOrg && effectiveDataset && episodeId !== undefined) {
@@ -336,6 +367,109 @@ function EpisodeViewerInner({
 
     setFrameLabels([]);
     setEpisodeLabel(null);
+    setHasUnsavedChanges(false);
+    setDeletedFrameIndices(new Set());
+    setPairingWarnings([]);
+  };
+
+  // Callback for pairing warnings from frame label panel
+  const handlePairingWarningsChange = useCallback((warnings: string[]) => {
+    setPairingWarnings(warnings);
+  }, []);
+
+  // Batch save all labels (episode + all frames)
+  const handleSaveAllLabels = async () => {
+    if (!labellerId) return;
+
+    // Show paired tag warning if exists (confirm to proceed)
+    if (pairingWarnings.length > 0) {
+      const confirmed = window.confirm(
+        "Warning: Some paired issue tags are unbalanced.\nPlease review the frame labeller panel.\n\nSave anyway?"
+      );
+      if (!confirmed) {
+        setIsSaving(false);
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const episodeIdStr = String(episodeId);
+
+      // 1. Upsert labeller (ensure it exists)
+      await supabase.from("labellers").upsert(
+        { id: labellerId, name: labellerId },
+        { onConflict: "id" }
+      );
+
+      // 2. Delete explicitly deleted frames first
+      if (deletedFrameIndices.size > 0) {
+        const { error: deleteError } = await supabase
+          .from("frame_labels")
+          .delete()
+          .eq("org_id", effectiveOrg)
+          .eq("dataset_id", effectiveDataset)
+          .eq("episode_id", episodeIdStr)
+          .eq("labeller_id", labellerId)
+          .in("frame_idx", Array.from(deletedFrameIndices));
+        
+        if (deleteError) throw deleteError;
+      }
+
+      // 3. Upsert episode label (if exists)
+      if (episodeLabel) {
+        const episodeData = {
+          org_id: effectiveOrg,
+          dataset_id: effectiveDataset,
+          episode_id: episodeIdStr,
+          labeller_id: labellerId,
+          quality_tag: episodeLabel.qualityTag,
+          key_notes: episodeLabel.keyNotes,
+          remarks: episodeLabel.remarks,
+          updated_at: episodeLabel.updatedAt || new Date().toISOString(),
+        };
+        
+        const { error: epError } = await supabase
+          .from("episode_labels")
+          .upsert(episodeData, { onConflict: "org_id,dataset_id,episode_id" });
+        
+        if (epError) throw epError;
+      }
+
+      // 4. Batch upsert ALL frame labels
+      if (frameLabels.length > 0) {
+        const frameRows = frameLabels.map(label => ({
+          org_id: effectiveOrg,
+          dataset_id: effectiveDataset,
+          episode_id: episodeIdStr,
+          frame_idx: label.frameIdx,
+          labeller_id: label.labellerId,
+          phase_tag: label.phaseTag,
+          issue_tags: label.issueTags,
+          notes: label.notes,
+          updated_at: label.updatedAt || new Date().toISOString(),
+        }));
+        
+        const { error: frameError } = await supabase
+          .from("frame_labels")
+          .upsert(frameRows, {
+            onConflict: "org_id,dataset_id,episode_id,frame_idx"
+          });
+        
+        if (frameError) throw frameError;
+      }
+
+      // 5. Reset state on success
+      setHasUnsavedChanges(false);
+      setDeletedFrameIndices(new Set());
+      alert("All labels saved successfully!");
+    } catch (error) {
+      console.error("Save failed:", error);
+      alert("Failed to save labels.\nCheck console for details.");
+      // Keep hasUnsavedChanges = true so user can retry
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Don't render until we have labeller ID
@@ -358,6 +492,7 @@ function EpisodeViewerInner({
         currentPage={currentPage}
         prevPage={prevPage}
         nextPage={nextPage}
+        hasUnsavedChanges={hasUnsavedChanges}
       />
 
       {/* Content */}
@@ -417,43 +552,11 @@ function EpisodeViewerInner({
           episodeId={String(episodeId)}
           labellerId={labellerId}
           initialLabel={episodeLabel ?? undefined}
-          onSave={async (label) => {
-            const { labellerId, qualityTag, keyNotes, remarks, updatedAt } = label;
-
-            // Ensure labeller exists in labellers table
-            await supabase
-              .from("labellers")
-              .upsert(
-                {
-                  id: labellerId,
-                  name: labellerId,
-                },
-                { onConflict: "id" },
-              );
-
-            const { error } = await supabase
-              .from("episode_labels")
-              .upsert(
-                {
-                  org_id: effectiveOrg,
-                  dataset_id: effectiveDataset,
-                  episode_id: String(episodeId),
-                  labeller_id: labellerId,
-                  quality_tag: qualityTag,
-                  key_notes: keyNotes,
-                  remarks,
-                  updated_at: updatedAt,
-                },
-                { onConflict: "org_id,dataset_id,episode_id" },
-              );
-
-            if (error) {
-              console.error("Error saving episode label", error);
-            } else {
-              console.log("Episode label saved to DB");
-              setEpisodeLabel(label);
-            }
-          }}
+          hasUnsavedChanges={hasUnsavedChanges}
+          isSaving={isSaving}
+          onSaveAll={handleSaveAllLabels}
+          onMarkDirty={() => setHasUnsavedChanges(true)}
+          onChange={(label) => setEpisodeLabel(label)}
           onClearAll={handleClearAllLabels}
         />
 
@@ -487,68 +590,27 @@ function EpisodeViewerInner({
         <PlaybackBar
           frameLabels={frameLabels}
           labellerId={labellerId}
-          onFrameLabelSave={async (label) => {
-            const { frameIdx, labellerId, phaseTag, issueTags, notes, updatedAt } = label;
-
-            // Ensure labeller exists in labellers table
-            await supabase
-              .from("labellers")
-              .upsert(
-                {
-                  id: labellerId,
-                  name: labellerId,
-                },
-                { onConflict: "id" },
-              );
-
-            const { error } = await supabase
-              .from("frame_labels")
-              .upsert(
-                {
-                  org_id: effectiveOrg,
-                  dataset_id: effectiveDataset,
-                  episode_id: String(episodeId),
-                  frame_idx: frameIdx,
-                  labeller_id: labellerId,
-                  phase_tag: phaseTag,
-                  issue_tags: issueTags,
-                  notes,
-                  updated_at: updatedAt,
-                },
-                { onConflict: "org_id,dataset_id,episode_id,frame_idx" },
-              );
-
-            if (error) {
-              console.error("Error saving frame label", error);
-            } else {
-              console.log("Frame label saved to DB");
-              setFrameLabels((prev) => {
-                const idx = prev.findIndex((l) => l.frameIdx === frameIdx);
-                if (idx === -1) return [...prev, label];
-                const copy = [...prev];
-                copy[idx] = label;
-                return copy;
-              });
-            }
+          onFrameLabelSave={(label) => {
+            // Update local state and mark dirty
+            setFrameLabels((prev) => {
+              const idx = prev.findIndex((l) => l.frameIdx === label.frameIdx);
+              if (idx === -1) return [...prev, label];
+              const copy = [...prev];
+              copy[idx] = label;
+              return copy;
+            });
+            setHasUnsavedChanges(true);
           }}
-          onFrameLabelDelete={async (frameIdx) => {
-            const { error } = await supabase
-              .from("frame_labels")
-              .delete()
-              .eq("org_id", effectiveOrg)
-              .eq("dataset_id", effectiveDataset)
-              .eq("episode_id", String(episodeId))
-              .eq("frame_idx", frameIdx);
-
-            if (error) {
-              console.error("Error deleting frame label", error);
-            } else {
-              console.log("Frame label deleted from DB", frameIdx);
-              setFrameLabels((prev) =>
-                prev.filter((l) => l.frameIdx !== frameIdx),
-              );
-            }
+          onFrameLabelDelete={(frameIdx) => {
+            // Remove from local state, track deletion, mark dirty
+            setFrameLabels((prev) =>
+              prev.filter((l) => l.frameIdx !== frameIdx)
+            );
+            setDeletedFrameIndices((prev) => new Set(prev).add(frameIdx));
+            setHasUnsavedChanges(true);
           }}
+          onMarkDirty={() => setHasUnsavedChanges(true)}
+          onPairingWarningsChange={handlePairingWarningsChange}
         />
       </div>
     </div>
