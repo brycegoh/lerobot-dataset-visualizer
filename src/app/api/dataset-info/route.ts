@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const infoUrl = `${DATASET_URL}/${repoId}/resolve/${version}/meta/info.json`;
+  const infoUrl = `${DATASET_URL}/${repoId}/resolve/main/meta/info.json`;
   const headers = getHfAuthHeaders(infoUrl);
   
   // Debug logging - check if HF token is available

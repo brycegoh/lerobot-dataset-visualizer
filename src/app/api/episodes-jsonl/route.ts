@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const jsonlUrl = `${DATASET_URL}/${repoId}/resolve/${version}/meta/episodes.jsonl`;
+  const jsonlUrl = `${DATASET_URL}/${repoId}/resolve/main/meta/episodes.jsonl`;
 
   try {
     const controller = new AbortController();
