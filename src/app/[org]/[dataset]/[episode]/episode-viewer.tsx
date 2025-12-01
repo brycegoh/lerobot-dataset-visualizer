@@ -173,14 +173,8 @@ function EpisodeViewerInner({
   // Use context for time sync
   const { currentTime, setCurrentTime, setIsPlaying, isPlaying } = useTime();
 
-  // Pagination state
-  const pageSize = 100;
-  const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = Math.ceil(episodes.length / pageSize);
-  const paginatedEpisodes = useMemo(
-    () => episodes.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [episodes, currentPage, pageSize]
-  );
+  // Sidebar ref for accessing filtered episodes (for arrow key navigation)
+  const sidebarRef = useRef<{ getFilteredEpisodes: () => number[] }>(null);
 
   // Preload adjacent episodes' videos (for smoother navigation)
   useEffect(() => {
@@ -220,14 +214,8 @@ function EpisodeViewerInner({
     });
   }, []);
 
-  // Initialize page & keyboard listener
+  // Initialize keyboard listener
   useEffect(() => {
-    // Initialize page based on current episode
-    const episodeIndex = episodes.indexOf(episodeId);
-    if (episodeIndex !== -1) {
-      setCurrentPage(Math.floor(episodeIndex / pageSize) + 1);
-    }
-
     const handleKeyDown = (e: KeyboardEvent) => {
       const { key } = e;
 
@@ -236,11 +224,29 @@ function EpisodeViewerInner({
         setIsPlaying((prev: boolean) => !prev);
       } else if (key === "ArrowDown" || key === "ArrowUp") {
         e.preventDefault();
-        const nextEpisodeId =
-          key === "ArrowDown" ? episodeId + 1 : episodeId - 1;
-        const lowestEpisodeId = episodes[0];
-        const highestEpisodeId = episodes[episodes.length - 1];
-
+        
+        // Get filtered episodes from sidebar
+        const filteredEps = sidebarRef.current?.getFilteredEpisodes() || episodes;
+        
+        // Handle empty filter
+        if (filteredEps.length === 0) return;
+        
+        const lowestEpisodeId = filteredEps[0];
+        const highestEpisodeId = filteredEps[filteredEps.length - 1];
+        
+        let nextEpisodeId;
+        
+        // If outside range, jump to closest edge
+        if (episodeId < lowestEpisodeId) {
+          nextEpisodeId = lowestEpisodeId;
+        } else if (episodeId > highestEpisodeId) {
+          nextEpisodeId = highestEpisodeId;
+        } else {
+          // In range, calculate next based on arrow direction
+          nextEpisodeId = key === "ArrowDown" ? episodeId + 1 : episodeId - 1;
+        }
+        
+        // Navigate if in range
         if (
           nextEpisodeId >= lowestEpisodeId &&
           nextEpisodeId <= highestEpisodeId
@@ -261,7 +267,7 @@ function EpisodeViewerInner({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [episodes, episodeId, pageSize, router, setIsPlaying, hasUnsavedChanges]);
+  }, [episodes, episodeId, router, setIsPlaying, hasUnsavedChanges]);
 
   // Browser navigation guard (close tab, refresh, external links)
   useEffect(() => {
@@ -380,19 +386,6 @@ function EpisodeViewerInner({
       loadLabels();
     }
   }, [effectiveOrg, effectiveDataset, episodeId, labellerId, sourceInfo, isLoadingSourceInfo]);
-
-  // Pagination functions
-  const nextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1);
-    }
-  };
-
-  const prevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
-    }
-  };
 
   // Clear all labels for this episode (episode + frames)
   const handleClearAllLabels = async () => {
@@ -557,13 +550,12 @@ function EpisodeViewerInner({
     <div className="flex h-screen max-h-screen bg-slate-950 text-gray-200">
       {/* Sidebar */}
       <Sidebar
+        ref={sidebarRef}
         datasetInfo={datasetInfo}
-        paginatedEpisodes={paginatedEpisodes}
+        episodes={episodes}
         episodeId={episodeId}
-        totalPages={totalPages}
-        currentPage={currentPage}
-        prevPage={prevPage}
-        nextPage={nextPage}
+        org={effectiveOrg}
+        dataset={effectiveDataset}
         hasUnsavedChanges={hasUnsavedChanges}
       />
 

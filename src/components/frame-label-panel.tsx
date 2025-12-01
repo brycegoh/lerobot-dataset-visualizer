@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
-  "start_task",
   "left_arm_pick_litter",
   "right_arm_pick_litter",
   "left_arm_bin_litter",
@@ -399,7 +398,7 @@ export function FrameLabelPanel({
           {/* Issues */}
           <div className="flex flex-col gap-3">
             <label className="text-sm font-medium text-slate-300">
-              Issues:
+              Issues: (Select ALL that apply)
             </label>
             {Object.entries(ISSUE_TAG_CATEGORIES).map(([category, { issues, recovery }]) => (
               <div key={category} className="flex flex-col gap-1.5">

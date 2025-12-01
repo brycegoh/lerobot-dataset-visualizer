@@ -12,10 +12,10 @@ const QUALITY_TAG_OPTIONS = [
 type QualityTag = (typeof QUALITY_TAG_OPTIONS)[number];
 
 const KEY_NOTE_OPTIONS = [
-  "failed_attempt",
+  "failed_pick_attempt",
   "litter_stuck_gripper",
   "collision",
-  "litter_fall_off_table",
+  "litter_fall_off_counter",
 ] as const;
 
 type KeyNoteTag = (typeof KEY_NOTE_OPTIONS)[number];
