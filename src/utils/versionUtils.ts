@@ -35,7 +35,7 @@ export async function fetchDatasetInfoFromApi(repoId: string, version: string = 
   
   if (isServer) {
     // Server-side: call HuggingFace directly (has access to env vars)
-    const infoUrl = `${DATASET_URL}/${repoId}/resolve/${version}/meta/info.json`;
+    const infoUrl = `${DATASET_URL}/${repoId}/resolve/main/meta/info.json`;
     const response = await fetch(infoUrl, {
       method: "GET",
       cache: "no-store",
