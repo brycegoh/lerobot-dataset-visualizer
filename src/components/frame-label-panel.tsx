@@ -4,8 +4,10 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
-  "left_arm_pick_litter",
-  "right_arm_pick_litter",
+  "left_grip_start",
+  "left_grip_end",
+  "right_grip_start",
+  "right_grip_end", 
   "left_arm_bin_litter",
   "right_arm_bin_litter",
   "end_task",

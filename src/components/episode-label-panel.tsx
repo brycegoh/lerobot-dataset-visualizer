@@ -23,18 +23,18 @@ type KeyNoteTag = (typeof KEY_NOTE_OPTIONS)[number];
 const LITTER_ITEMS_OPTIONS = [
   "pb_biscuit_wrapper",
   "oreo_wrapper",
+  "bubble_wrap",
   "flattened_plastic_cup",
   "non_flattened_plastic_cup",
-  "orange_bottle_cap",
-  "facial_tissue",
-  "paper_towel",
-  "pepsi_bottle",
-  "toilet_roll_cupboard_holder",
   "oatside_uht_250ml_bottle",
   "chrysanthemum_bottle",
-  "empty_tissue_packet",
-  "bubble_wrap",
+  "pepsi_bottle",
+  "orange_bottle_cap",
   "plastic_cup_lid",
+  "facial_tissue",
+  "paper_towel",
+  "empty_tissue_packet",
+  "toilet_roll_cupboard_holder",
 ] as const;
 
 const ARMS_USED_OPTIONS = ["left", "right", "both"] as const;
