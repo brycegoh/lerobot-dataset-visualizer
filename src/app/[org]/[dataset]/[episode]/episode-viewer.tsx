@@ -13,6 +13,7 @@ import { getAdjacentEpisodesVideoInfo } from "./fetch-data";
 import {
   EpisodeLabelPanel,
   type EpisodeLabel,
+  type EpisodeLabelPanelRef,
 } from "@/components/episode-label-panel";
 import type { FrameLabel } from "@/components/frame-label-panel";
 import { supabase } from "@/utils/supabaseClient";
@@ -175,6 +176,9 @@ function EpisodeViewerInner({
 
   // Sidebar ref for accessing filtered episodes (for arrow key navigation)
   const sidebarRef = useRef<{ getFilteredEpisodes: () => number[] }>(null);
+  
+  // Episode label panel ref for getting fresh state when saving
+  const episodeLabelRef = useRef<EpisodeLabelPanelRef>(null);
 
   // Preload adjacent episodes' videos (for smoother navigation)
   useEffect(() => {
@@ -218,6 +222,15 @@ function EpisodeViewerInner({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const { key } = e;
+
+      // Ctrl+S / Cmd+S to save
+      if ((e.ctrlKey || e.metaKey) && key === "s") {
+        e.preventDefault();
+        if (hasUnsavedChanges && !isSaving) {
+          handleSaveAllLabels();
+        }
+        return;
+      }
 
       if (key === " ") {
         e.preventDefault();
@@ -267,7 +280,7 @@ function EpisodeViewerInner({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [episodes, episodeId, router, setIsPlaying, hasUnsavedChanges]);
+  }, [episodes, episodeId, router, setIsPlaying, hasUnsavedChanges, isSaving]);
 
   // Browser navigation guard (close tab, refresh, external links)
   useEffect(() => {
@@ -322,7 +335,7 @@ function EpisodeViewerInner({
       // Episode-level label
       const { data: epData, error: epError } = await supabase
         .from("episode_labels")
-        .select("labeller_id,quality_tag,key_notes,remarks,updated_at")
+        .select("labeller_id,quality_tag,key_notes,litter_items,arms_used,remarks,updated_at")
         .eq("org_id", queryOrg)
         .eq("dataset_id", queryDataset)
         .eq("episode_id", episodeIdStr)
@@ -341,6 +354,8 @@ function EpisodeViewerInner({
           labellerId: epData.labeller_id,
           qualityTag: epData.quality_tag,
           keyNotes: epData.key_notes ?? [],
+          litterItems: epData.litter_items ?? {},
+          armsUsed: epData.arms_used ?? null,
           remarks: epData.remarks ?? "",
           updatedAt: epData.updated_at ?? undefined,
         });
@@ -437,11 +452,11 @@ function EpisodeViewerInner({
   const handleSaveAllLabels = async () => {
     if (!labellerId) return;
 
-    // REQUIRED: Check if quality tag is selected
-    if (!episodeLabel || !episodeLabel.qualityTag) {
-      alert("Please select a quality tag before saving.\nQuality rating is required.");
-      return;
-    }
+    // Get fresh episode label state from panel ref (handles rapid clicking accurately)
+    const freshEpisodeLabel = episodeLabelRef.current?.getCurrentLabel();
+    
+    // Use fresh label if available, otherwise fall back to state
+    const labelToSave = freshEpisodeLabel || episodeLabel;
 
     // Show paired tag warning if exists (confirm to proceed)
     if (pairingWarnings.length > 0) {
@@ -482,17 +497,30 @@ function EpisodeViewerInner({
       }
 
       // 3. Upsert episode label (if exists)
-      if (episodeLabel) {
+      if (labelToSave) {
+        // Filter to only include items with qty > 0
+        const litterItemsFiltered = Object.fromEntries(
+          Object.entries(labelToSave.litterItems || {}).filter(([_, qty]) => qty > 0)
+        );
+        // Use null instead of {} for consistency with armsUsed
+        const litterItemsToSave = Object.keys(litterItemsFiltered).length > 0 
+          ? litterItemsFiltered 
+          : null;
+
         const episodeData = {
           org_id: queryOrg,
           dataset_id: queryDataset,
           episode_id: episodeIdStr,
           labeller_id: labellerId,
-          quality_tag: episodeLabel.qualityTag,
-          key_notes: episodeLabel.keyNotes,
-          remarks: episodeLabel.remarks,
-          updated_at: episodeLabel.updatedAt || new Date().toISOString(),
+          quality_tag: labelToSave.qualityTag,
+          key_notes: labelToSave.keyNotes,
+          litter_items: litterItemsToSave,
+          arms_used: labelToSave.armsUsed,
+          remarks: labelToSave.remarks,
+          updated_at: labelToSave.updatedAt || new Date().toISOString(),
         };
+        
+        console.log("[DEBUG] Saving episode label:", episodeData);
         
         const { error: epError } = await supabase
           .from("episode_labels")
@@ -611,6 +639,7 @@ function EpisodeViewerInner({
 
         {/* Episode-level labels */}
         <EpisodeLabelPanel
+          ref={episodeLabelRef}
           orgId={effectiveOrg}
           datasetId={effectiveDataset}
           episodeId={String(episodeId)}

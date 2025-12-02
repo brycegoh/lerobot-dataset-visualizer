@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 
 const QUALITY_TAG_OPTIONS = [
   "high",
@@ -20,16 +20,45 @@ const KEY_NOTE_OPTIONS = [
 
 type KeyNoteTag = (typeof KEY_NOTE_OPTIONS)[number];
 
+const LITTER_ITEMS_OPTIONS = [
+  "pb_biscuit_wrapper",
+  "oreo_wrapper",
+  "flattened_plastic_cup",
+  "non_flattened_plastic_cup",
+  "orange_bottle_cap",
+  "facial_tissue",
+  "paper_towel",
+  "pepsi_bottle",
+  "toilet_roll_cupboard_holder",
+  "oatside_uht_250ml_bottle",
+  "chrysanthemum_bottle",
+  "empty_tissue_packet",
+  "bubble_wrap",
+  "plastic_cup_lid",
+] as const;
+
+const ARMS_USED_OPTIONS = ["left", "right", "both"] as const;
+type ArmsUsed = (typeof ARMS_USED_OPTIONS)[number];
+
+// Store litter items as object: { itemName: quantity }
+type LitterItemsMap = Record<string, number>;
+
 export type EpisodeLabel = {
   orgId: string;
   datasetId: string;
   episodeId: string;
   labellerId: string;
-  qualityTag: QualityTag;
+  qualityTag: QualityTag | null;
   keyNotes: KeyNoteTag[];
+  litterItems: LitterItemsMap;
+  armsUsed: ArmsUsed | null;
   remarks: string;
   updatedAt?: string;
 };
+
+export interface EpisodeLabelPanelRef {
+  getCurrentLabel: () => EpisodeLabel;
+}
 
 type EpisodeLabelPanelProps = {
   orgId: string;
@@ -46,7 +75,7 @@ type EpisodeLabelPanelProps = {
   sourceInfo?: { org: string; dataset: string; episode: number } | null;
 };
 
-export function EpisodeLabelPanel({
+export const EpisodeLabelPanel = forwardRef<EpisodeLabelPanelRef, EpisodeLabelPanelProps>(({
   orgId,
   datasetId,
   episodeId,
@@ -59,12 +88,40 @@ export function EpisodeLabelPanel({
   onChange,
   onClearAll,
   sourceInfo,
-}: EpisodeLabelPanelProps) {
+}, ref) => {
   // allow "no selection" until user clicks a chip
   const [qualityTag, setQualityTag] = useState<QualityTag | null>(null);
   const [keyNotes, setKeyNotes] = useState<KeyNoteTag[]>([]);
+  const [litterItems, setLitterItems] = useState<LitterItemsMap>({});
+  const [armsUsed, setArmsUsed] = useState<ArmsUsed | null>(null);
+  const [editingItemQty, setEditingItemQty] = useState<string | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [isClearing, setIsClearing] = useState(false);
+
+  // Use ref to track latest litterItems state (avoids stale closure)
+  const litterItemsRef = useRef<LitterItemsMap>({});
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    litterItemsRef.current = litterItems;
+  }, [litterItems]);
+
+  // Expose method to get current state (for accurate saving)
+  useImperativeHandle(ref, () => ({
+    getCurrentLabel: () => ({
+      orgId,
+      datasetId,
+      episodeId,
+      labellerId,
+      qualityTag,
+      keyNotes,
+      litterItems,
+      armsUsed,
+      remarks,
+      updatedAt: new Date().toISOString(),
+    })
+  }));
+
 
   const hasQualitySelection = qualityTag !== null;
 
@@ -73,13 +130,42 @@ export function EpisodeLabelPanel({
     if (initialLabel) {
       setQualityTag(initialLabel.qualityTag ?? null);
       setKeyNotes(initialLabel.keyNotes ?? []);
+      setLitterItems(initialLabel.litterItems ?? {});
+      setArmsUsed(initialLabel.armsUsed ?? null);
       setRemarks(initialLabel.remarks ?? "");
     } else {
       setQualityTag(null);
       setKeyNotes([]);
+      setLitterItems({});
+      setArmsUsed(null);
       setRemarks("");
     }
   }, [initialLabel]);
+
+  // Notify parent whenever any field changes (debounced to batch rapid clicks)
+  useEffect(() => {
+    // Skip initial mount and when no changes yet
+    if (!qualityTag && keyNotes.length === 0 && Object.keys(litterItems).length === 0 && !armsUsed && !remarks) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      onChange({
+        orgId,
+        datasetId,
+        episodeId,
+        labellerId,
+        qualityTag,
+        keyNotes,
+        litterItems,
+        armsUsed,
+        remarks,
+        updatedAt: new Date().toISOString(),
+      });
+    }, 50); // 50ms debounce to batch rapid clicks
+
+    return () => clearTimeout(timer);
+  }, [qualityTag, keyNotes, litterItems, armsUsed, remarks, onChange, orgId, datasetId, episodeId, labellerId]);
 
   const toggleKeyNote = (tag: KeyNoteTag) => {
     const newKeyNotes = keyNotes.includes(tag)
@@ -88,20 +174,46 @@ export function EpisodeLabelPanel({
     
     setKeyNotes(newKeyNotes);
     onMarkDirty();
+  };
+
+  // Left click: increment litter item
+  const incrementLitterItem = (item: string) => {
+    setLitterItems(currentItems => ({
+      ...currentItems,
+      [item]: (currentItems[item] || 0) + 1
+    }));
+    onMarkDirty();
+  };
+
+  // Right click: decrement litter item (min 0)
+  const decrementLitterItem = (item: string, e: React.MouseEvent) => {
+    e.preventDefault(); // prevent context menu
     
-    // Update parent with new label
-    if (qualityTag) {
-      onChange({
-        orgId,
-        datasetId,
-        episodeId,
-        labellerId,
-        qualityTag,
-        keyNotes: newKeyNotes,
-        remarks,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    setLitterItems(currentItems => {
+      const newQty = Math.max(0, (currentItems[item] || 0) - 1);
+      
+      if (newQty === 0) {
+        const { [item]: _, ...rest } = currentItems;
+        return rest;
+      }
+      return { ...currentItems, [item]: newQty };
+    });
+    onMarkDirty();
+  };
+
+  // Click count badge to edit directly
+  const handleQtyInput = (item: string, value: string) => {
+    const qty = parseInt(value);
+    
+    setLitterItems(currentItems => {
+      if (isNaN(qty) || qty <= 0) {
+        const { [item]: _, ...rest } = currentItems;
+        return rest;
+      }
+      return { ...currentItems, [item]: qty };
+    });
+    setEditingItemQty(null);
+    onMarkDirty();
   };
 
   const handleClearAll = async () => {
@@ -117,6 +229,8 @@ export function EpisodeLabelPanel({
       // local reset
       setQualityTag(null);
       setKeyNotes([]);
+      setLitterItems({});
+      setArmsUsed(null);
       setRemarks("");
     } finally {
       setIsClearing(false);
@@ -155,7 +269,7 @@ export function EpisodeLabelPanel({
       {/* Quality as chips */}
       <div className="mb-3 flex flex-col gap-2">
         <label className="text-sm font-medium text-slate-300">
-          Quality (required):
+          Quality:
         </label>
         <div className="flex flex-wrap gap-2">
           {QUALITY_TAG_OPTIONS.map((tag) => {
@@ -168,20 +282,6 @@ export function EpisodeLabelPanel({
                   const newQualityTag = qualityTag === tag ? null : tag;
                   setQualityTag(newQualityTag);
                   onMarkDirty();
-                  
-                  // Update parent with new label
-                  if (newQualityTag) {
-                    onChange({
-                      orgId,
-                      datasetId,
-                      episodeId,
-                      labellerId,
-                      qualityTag: newQualityTag,
-                      keyNotes,
-                      remarks,
-                      updatedAt: new Date().toISOString(),
-                    });
-                  }
                 }}
                 className={`rounded-full border px-3 py-1.5 text-xs ${
                   active
@@ -223,6 +323,92 @@ export function EpisodeLabelPanel({
         </div>
       </div>
 
+      {/* Litter Items with quantities */}
+      <div className="mb-3 flex flex-col gap-2">
+        <label className="text-sm font-medium text-slate-300">
+          Litter Items ({Object.keys(litterItems).length} items, {Object.values(litterItems).reduce((a,b) => a+b, 0)} total):
+        </label>
+        <p className="text-[11px] text-slate-400">
+           Left click to add (+1), Right click to remove (-1), Click count to type
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {LITTER_ITEMS_OPTIONS.map((item) => {
+            const count = litterItems[item] || 0;
+            const hasCount = count > 0;
+            
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => incrementLitterItem(item)}
+                onContextMenu={(e) => decrementLitterItem(item, e)}
+                className={`relative rounded-full border px-3 py-1.5 text-xs ${
+                  hasCount
+                    ? "bg-slate-100 text-slate-900 border-slate-100"
+                    : "bg-slate-900 text-slate-100 border-slate-600"
+                }`}
+              >
+                {item}
+                {hasCount && (
+                  editingItemQty === item ? (
+                    <input
+                      type="number"
+                      min="0"
+                      value={count}
+                      onChange={(e) => handleQtyInput(item, e.target.value)}
+                      onBlur={() => setEditingItemQty(null)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="ml-1 w-10 rounded px-1 text-slate-900 bg-white border border-slate-300"
+                      autoFocus
+                    />
+                  ) : (
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingItemQty(item);
+                      }}
+                      className="ml-1 font-bold cursor-pointer hover:underline"
+                    >
+                      ({count})
+                    </span>
+                  )
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Arms Used */}
+      <div className="mb-3 flex flex-col gap-2">
+        <label className="text-sm font-medium text-slate-300">
+          Arms Used:
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {ARMS_USED_OPTIONS.map((arms) => {
+            const active = armsUsed === arms;
+            return (
+              <button
+                key={arms}
+                type="button"
+                onClick={() => {
+                  const newArmsUsed = armsUsed === arms ? null : arms;
+                  setArmsUsed(newArmsUsed);
+                  onMarkDirty();
+                }}
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  active
+                    ? "bg-emerald-400 text-slate-900 border-emerald-300"
+                    : "bg-slate-900 text-slate-100 border-slate-600"
+                }`}
+              >
+                {arms}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Remarks */}
       <div>
         <label className="mb-2 block text-sm font-medium text-slate-300">
@@ -237,20 +423,6 @@ export function EpisodeLabelPanel({
             const newRemarks = e.target.value;
             setRemarks(newRemarks);
             onMarkDirty();
-            
-            // Update parent with new label
-            if (qualityTag) {
-              onChange({
-                orgId,
-                datasetId,
-                episodeId,
-                labellerId,
-                qualityTag,
-                keyNotes,
-                remarks: newRemarks,
-                updatedAt: new Date().toISOString(),
-              });
-            }
           }}
         />
       </div>
@@ -268,4 +440,6 @@ export function EpisodeLabelPanel({
       </div>
     </section>
   );
-}
+});
+
+EpisodeLabelPanel.displayName = "EpisodeLabelPanel";
