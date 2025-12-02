@@ -261,7 +261,7 @@ export const EpisodeLabelPanel = forwardRef<EpisodeLabelPanelRef, EpisodeLabelPa
             disabled={isClearing || !onClearAll}
             className="rounded-md border border-red-500 px-3 py-1 text-xs font-medium text-red-300 hover:bg-red-950 disabled:opacity-50"
           >
-            {isClearing ? "Clearing…" : "Clear all"}
+            {isClearing ? "Clearing…" : "Destroy ALL!"}
           </button>
         </div>
       </header>

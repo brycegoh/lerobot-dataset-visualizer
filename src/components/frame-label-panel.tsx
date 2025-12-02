@@ -4,10 +4,10 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { useTime } from "@/context/time-context";
 
 const PHASE_TAG_OPTIONS = [
-  "left_grip_start",
-  "left_grip_end",
-  "right_grip_start",
-  "right_grip_end", 
+  "left_grip_open",
+  "left_grip_close",
+  "right_grip_open",
+  "right_grip_close", 
   "left_arm_bin_litter",
   "right_arm_bin_litter",
   "end_task",
@@ -115,7 +115,7 @@ function checkPairedIssueTags(allLabels: FrameLabel[]): string[] {
 export type FrameLabel = {
   frameIdx: number;
   labellerId: string;
-  phaseTag: PhaseTag | null;
+  phaseTag: PhaseTag[];
   issueTags: IssueTag[];
   notes: string;
   updatedAt?: string;
@@ -185,12 +185,12 @@ export function FrameLabelPanel({
   const existing = labelsByFrame[frameIdx];
 
   const [isEditing, setIsEditing] = useState(false);
-  const [phaseTag, setPhaseTag] = useState<PhaseTag | null>(null);
+  const [phaseTags, setPhaseTags] = useState<PhaseTag[]>([]);
   const [issueTags, setIssueTags] = useState<IssueTag[]>([]);
   const [notes, setNotes] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const hasPhaseSelection = phaseTag !== null;
-  const hasAnyContent = phaseTag !== null || issueTags.length > 0 || notes.trim().length > 0;
+  const hasPhaseSelection = phaseTags.length > 0;
+  const hasAnyContent = phaseTags.length > 0 || issueTags.length > 0 || notes.trim().length > 0;
 
   const startEditing = (targetIdx?: number) => {
     setIsPlaying(false);
@@ -199,11 +199,11 @@ export function FrameLabelPanel({
     const label = labelsByFrame[idx];
 
     if (label) {
-      setPhaseTag(label.phaseTag ?? null);
+      setPhaseTags(label.phaseTag ?? []);
       setIssueTags(label.issueTags);
       setNotes(label.notes);
     } else {
-      setPhaseTag(null);
+      setPhaseTags([]);
       setIssueTags([]);
       setNotes("");
     }
@@ -227,11 +227,11 @@ export function FrameLabelPanel({
     const label = labelsByFrame[newIdx];
 
     if (label) {
-      setPhaseTag(label.phaseTag ?? null);
+      setPhaseTags(label.phaseTag ?? []);
       setIssueTags(label.issueTags);
       setNotes(label.notes);
     } else {
-      setPhaseTag(null);
+      setPhaseTags([]);
       setIssueTags([]);
       setNotes("");
     }
@@ -264,9 +264,15 @@ export function FrameLabelPanel({
     );
   };
 
+  const togglePhaseTag = (tag: PhaseTag) => {
+    setPhaseTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  };
+
   const handleSave = async () => {
     // Only skip save if nothing at all is entered
-    if (!phaseTag && issueTags.length === 0 && !notes.trim()) {
+    if (phaseTags.length === 0 && issueTags.length === 0 && !notes.trim()) {
       setIsEditing(false);
       setEditingFrameIdx(null);
       return;
@@ -277,7 +283,7 @@ export function FrameLabelPanel({
     const label: FrameLabel = {
       frameIdx: idx,
       labellerId,
-      phaseTag,
+      phaseTag: phaseTags,
       issueTags,
       notes,
       updatedAt: new Date().toISOString(),
@@ -336,7 +342,8 @@ export function FrameLabelPanel({
   };
 
   const summaryParts: string[] = [];
-  if (existing?.phaseTag) summaryParts.push(`phase: ${existing.phaseTag}`);
+  if (existing?.phaseTag?.length) 
+    summaryParts.push(`phases: ${existing.phaseTag.join(", ")}`);
   if (existing?.issueTags?.length)
     summaryParts.push(`issues: ${existing.issueTags.join(", ")}`);
 
@@ -375,25 +382,23 @@ export function FrameLabelPanel({
               Phase:
             </label>
             <div className="flex flex-wrap gap-2">
-              {PHASE_TAG_OPTIONS.map((tag) => {
-                const active = phaseTag === tag;
-                return (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() =>
-                      setPhaseTag((prev) => (prev === tag ? null : tag))
-                    }
-                    className={`rounded-full border px-3 py-1.5 text-xs ${
-                      active
-                        ? "bg-emerald-400 text-slate-900 border-emerald-300"
-                        : "bg-slate-900 text-slate-100 border-slate-600"
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                );
-              })}
+            {PHASE_TAG_OPTIONS.map((tag) => {
+              const active = phaseTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => togglePhaseTag(tag)}
+                  className={`rounded-full border px-3 py-1.5 text-xs ${
+                    active
+                      ? "bg-slate-100 text-slate-900 border-slate-100"
+                      : "bg-slate-900 text-slate-100 border-slate-600"
+                  }`}
+                >
+                  {tag}
+                </button>
+              );
+            })}
             </div>
           </div>
 
