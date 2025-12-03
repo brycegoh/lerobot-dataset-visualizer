@@ -233,6 +233,12 @@ function EpisodeViewerInner({
       }
 
       if (key === " ") {
+        // Check if user is typing in a text field
+        const activeElement = document.activeElement;
+        const isTyping = activeElement?.tagName === 'TEXTAREA' || 
+                         activeElement?.tagName === 'INPUT';
+        if (isTyping) return; // Allow space to be typed normally
+        
         e.preventDefault();
         setIsPlaying((prev: boolean) => !prev);
       } else if (key === "ArrowDown" || key === "ArrowUp") {
@@ -381,7 +387,7 @@ function EpisodeViewerInner({
           frData.map((row: any) => ({
             frameIdx: row.frame_idx,
             labellerId: row.labeller_id,
-            phaseTag: row.phase_tag,
+            phaseTag: Array.isArray(row.phase_tag) ? row.phase_tag : (row.phase_tag ? [row.phase_tag] : []),
             issueTags: row.issue_tags ?? [],
             notes: row.notes ?? "",
             updatedAt: row.updated_at ?? undefined,

@@ -199,7 +199,13 @@ export function FrameLabelPanel({
     const label = labelsByFrame[idx];
 
     if (label) {
-      setPhaseTags(label.phaseTag ?? []);
+      // Handle both old format (single value) and new format (array)
+      const phaseTagArray = Array.isArray(label.phaseTag)
+        ? label.phaseTag
+        : label.phaseTag
+          ? [label.phaseTag]
+          : [];
+      setPhaseTags(phaseTagArray);
       setIssueTags(label.issueTags);
       setNotes(label.notes);
     } else {
@@ -227,7 +233,13 @@ export function FrameLabelPanel({
     const label = labelsByFrame[newIdx];
 
     if (label) {
-      setPhaseTags(label.phaseTag ?? []);
+      // Handle both old format (single value) and new format (array)
+      const phaseTagArray = Array.isArray(label.phaseTag)
+        ? label.phaseTag
+        : label.phaseTag
+          ? [label.phaseTag]
+          : [];
+      setPhaseTags(phaseTagArray);
       setIssueTags(label.issueTags);
       setNotes(label.notes);
     } else {
@@ -342,8 +354,16 @@ export function FrameLabelPanel({
   };
 
   const summaryParts: string[] = [];
-  if (existing?.phaseTag?.length) 
-    summaryParts.push(`phases: ${existing.phaseTag.join(", ")}`);
+  
+  // Handle both old format (single value) and new format (array)
+  const phaseTagArray = Array.isArray(existing?.phaseTag) 
+    ? existing.phaseTag 
+    : existing?.phaseTag 
+      ? [existing.phaseTag] 
+      : [];
+  
+  if (phaseTagArray.length) 
+    summaryParts.push(`phases: ${phaseTagArray.join(", ")}`);
   if (existing?.issueTags?.length)
     summaryParts.push(`issues: ${existing.issueTags.join(", ")}`);
 
@@ -382,23 +402,23 @@ export function FrameLabelPanel({
               Phase:
             </label>
             <div className="flex flex-wrap gap-2">
-            {PHASE_TAG_OPTIONS.map((tag) => {
+              {PHASE_TAG_OPTIONS.map((tag) => {
               const active = phaseTags.includes(tag);
-              return (
-                <button
-                  key={tag}
-                  type="button"
+                return (
+                  <button
+                    key={tag}
+                    type="button"
                   onClick={() => togglePhaseTag(tag)}
-                  className={`rounded-full border px-3 py-1.5 text-xs ${
-                    active
+                    className={`rounded-full border px-3 py-1.5 text-xs ${
+                      active
                       ? "bg-slate-100 text-slate-900 border-slate-100"
-                      : "bg-slate-900 text-slate-100 border-slate-600"
-                  }`}
-                >
-                  {tag}
-                </button>
-              );
-            })}
+                        : "bg-slate-900 text-slate-100 border-slate-600"
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
